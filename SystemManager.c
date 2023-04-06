@@ -85,8 +85,8 @@ void end_it_all(){
 
 }
 
-void waitforworkers() {
-    for (int i = 0; i < n_workers; i++) {
+void waitforchilds() {
+    for (int i = 0; i < n_workers+1; i++) {
       wait(NULL);
     }
 }
@@ -114,6 +114,17 @@ int main(int argc, char** argv) {
           printf("I'M THE BIG PAPA!!!\n");
         }
       }
+      if(pid > 0){
+        pid = fork();
+        if(pid == 0){
+        printf("I'm the alerts child process with a father with the id of %d\n", getppid());
+      }else if( pid <0){
+        perror("Error creating alerts child process!!\n");
+        exit(0);
+      }else{
+        printf("I'M the DADDY !!!\n");
+      }
+    }
 
 
     }else{
@@ -132,6 +143,6 @@ int main(int argc, char** argv) {
     printf("Opçoes invalidas!\n");
   }
 
-waitforworkers();
+waitforchilds();
 end_it_all();
 }
