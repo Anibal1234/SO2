@@ -1,2 +1,2 @@
-all: 
-	gcc -Wall -pthread test.c -o run
+all:
+	gcc -Wall -pthread SystemManager.c -o run

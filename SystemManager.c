@@ -18,11 +18,13 @@
 #include "structs.h"
 
 #define bufferLength 255
+//#define ConfFile
 
 // global variables
 int shmid;
+
 FILE *conf;
-FILE *log;
+//FILE *log;
 char buffer[bufferLength];
 int queue_size;
 int n_workers;
@@ -31,10 +33,13 @@ int max_sensors;
 int max_alerts;
 int conf_counter = 0;
 pid_t pid;
+pthread_t dispacher;
+pthread_t sensorReader;
+pthread_t consoleReader;
 
-void confAttribution()
+void confAttribution(char StringName[])
 {
-  conf = fopen("configFile.txt", "r");
+  conf = fopen(StringName, "r");
   if (conf == NULL)
   {
     printf("Config file can't be opened\n");
@@ -74,6 +79,12 @@ void confAttribution()
   // printf("SAO ESTAS : %d, %d, %d, %d, %d \n",queue_size,n_workers,max_keys,max_sensors,max_alerts);
 }
 
+void *thread_test(){
+  pthread_t tid= pthread_self();
+  printf("Thread %ld \n",tid);
+  pthread_exit(NULL);
+}
+
 void sharedmem()
 {
   shmid = shmget(IPC_PRIVATE, sizeof(shm_t), IPC_CREAT | 0777);
@@ -94,6 +105,15 @@ void sharedmem()
   printf("SHARED MEMORY CREATED AND ATTACHED!\n");
 }
 
+void createThreads(){
+  pthread_create(&dispacher,NULL,thread_test,NULL);
+  pthread_create(&sensorReader,NULL,thread_test,NULL);
+  pthread_create(&consoleReader,NULL,thread_test,NULL);
+  pthread_join(dispacher,NULL);
+  pthread_join(sensorReader,NULL);
+  pthread_join(consoleReader,NULL);
+}
+
 void end_it_all()
 {
   shmdt(shm);
@@ -110,13 +130,13 @@ void waitforchilds()
 
 int main(int argc, char **argv)
 {
-log = fopen("log.txt","a+");
+  /*log = fopen("log.txt","a+");
   time_t clock;
   struct tm *timeinfo;
   time(&clock);
   timeinfo = localtime(&clock);
   fprintf(log, "%d:%d:%d SIMULATOR STARTING\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-  sleep(1);
+  sleep(1);*/
 
   if (argc == 3)
   {
@@ -126,9 +146,13 @@ log = fopen("log.txt","a+");
     }
     else if (strcmp(argv[1], "home_iot") == 0)
     {
+      char *ConfName ;
+      ConfName= (char*)malloc(100* sizeof(char));
+      ConfName = argv[2];
       printf("This is the system Manager!!! \n");
-      confAttribution();
+      confAttribution(ConfName);
       sharedmem();
+      createThreads();
 
       for (int i = 0; i < n_workers; i++)
       {
@@ -177,6 +201,13 @@ log = fopen("log.txt","a+");
     if (strcmp(argv[1], "sensor") == 0)
     {
       printf("This is the sensor!!! \n");
+      sensor sens;//to do: confirmar que a infor esta correta!
+      strcpy(sens.id, argv[2]);
+      sens.interval = atoi(argv[3]);
+      strcpy(sens.key, argv[4]);
+      sens.min = atoi(argv[5]);
+      sens.max = atoi(argv[6]);
+      printf(" HERE'S THE INFO: %s, %d, %s, %d, %d ",sens.id,sens.interval,sens.key,sens.min,sens.max);
     }
     else
     {
