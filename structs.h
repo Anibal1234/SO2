@@ -19,4 +19,7 @@ typedef struct Sensor{
   int max;
 } sensor;
 
+char ConsoleID[32];
+
+
 #endif //UNTITLED1_STRUCTS_H

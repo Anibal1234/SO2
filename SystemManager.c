@@ -14,6 +14,7 @@
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <pthread.h>
+#include <ctype.h>
 
 #include "structs.h"
 
@@ -114,6 +115,43 @@ void createThreads(){
   pthread_join(consoleReader,NULL);
 }
 
+void consoleMenu(){
+  printf("\t MENU \t\n");
+  printf(" 1: EXIT\n 2: STATS\n 3: RESET\n 4: SENSORS\n 5: ADD ALERT\n 6: REMOVE ALERT\n 7: LIST ALERTS \n");
+  int choice;
+  scanf("%d", &choice);
+  if(choice >7 ){
+    printf("Nao existe essa opçao!!\n");
+    consoleMenu();
+  }else{
+  switch(choice){
+    case 1:
+      exit(0);
+    case 2:
+      printf("You're in stats!!!\n");
+      break;
+    case 3:
+      printf("You're in reset!!!\n");
+      break;
+    case 4:
+      printf("You're in sensors!!!\n");
+      break;
+    case 5:
+      printf("You're in add alert!!!\n");
+      break;
+    case 6:
+      printf("You're in remove alert!!!\n");
+      break;
+    case 7:
+      printf("You're in list alerts!!!\n");
+      break;
+    default:
+      printf("Nao existe essa opção!!!\n");
+      consoleMenu();
+  }
+}
+}
+
 void end_it_all()
 {
   shmdt(shm);
@@ -143,6 +181,10 @@ int main(int argc, char **argv)
     if (strcmp(argv[1], "user_console") == 0)
     {
       printf("This is the user console!!! \n");
+      strcpy(ConsoleID, argv[2]);
+      printf("Console ID: %s\n",ConsoleID);
+      consoleMenu();
+
     }
     else if (strcmp(argv[1], "home_iot") == 0)
     {
@@ -202,6 +244,10 @@ int main(int argc, char **argv)
     {
       printf("This is the sensor!!! \n");
       sensor sens;//to do: confirmar que a infor esta correta!
+      if(argv[2][2] == '\0' || argv[4][2] == '\0'){
+        perror("COMMAND ARGUMENTS WRONG!!!\n");
+        exit(0);
+      }
       strcpy(sens.id, argv[2]);
       sens.interval = atoi(argv[3]);
       strcpy(sens.key, argv[4]);
@@ -218,8 +264,10 @@ int main(int argc, char **argv)
   else
   {
     printf("Opçoes invalidas!\n");
+    exit(0);
   }
 
   waitforchilds();
   end_it_all();
+  exit(0);
 }
