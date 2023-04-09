@@ -15,6 +15,7 @@
 #include <sys/wait.h>
 #include <pthread.h>
 #include <ctype.h>
+#include <errno.h>
 
 #include "structs.h"
 
@@ -43,6 +44,7 @@ pthread_t consoleReader;
 
 void logging(char string[])
 {
+  sem_wait(file_mutex);
   logfile = fopen("log.txt", "a+");
   time_t clock;
   struct tm *timeinfo;
@@ -52,6 +54,7 @@ void logging(char string[])
   printf("%s", logger);
   fprintf(logfile, "%s", logger);
   sleep(1);
+  sem_post(file_mutex);
 }
 void confAttribution(char StringName[])
 {
@@ -71,30 +74,35 @@ void confAttribution(char StringName[])
       sem_wait(file_mutex);
       shm->queue_size = atoi(buffer);
       sem_post(file_mutex);
+      printf("funcionou?: %d \n", shm->queue_size);
     }
     else if (conf_counter == 2)
     {
       sem_wait(file_mutex);
-      n_workers = atoi(buffer);
+      shm->n_workers = atoi(buffer);
       sem_post(file_mutex);
+      printf("funcionou?: %d \n", shm->n_workers);
     }
     else if (conf_counter == 3)
     {
       sem_wait(file_mutex);
-      max_keys = atoi(buffer);
+      shm->max_keys = atoi(buffer);
       sem_post(file_mutex);
+      printf("funcionou?: %d \n", shm->max_keys);
     }
     else if (conf_counter == 4)
     {
       sem_wait(file_mutex);
-      max_sensors = atoi(buffer);
+      shm->max_sensors = atoi(buffer);
       sem_post(file_mutex);
+      printf("funcionou?: %d \n", shm->max_sensors);
     }
     else if (conf_counter == 5)
     {
       sem_wait(file_mutex);
-      max_alerts = atoi(buffer);
+      shm->max_alerts = atoi(buffer);
       sem_post(file_mutex);
+      printf("funcionou?: %d \n", shm->max_alerts);
     }
     else
     {
@@ -114,15 +122,21 @@ void *thread_test()
 }
 
 void createSem(){
-  file_mutex = sem_open("file_write", O_CREAT|O_EXCL , 0700, 1);
+  printf("YEEEEEEEE\n");
+  sem_unlink("file_write");
+  file_mutex = sem_open("file_write", O_CREAT| O_EXCL , 0700, 1);
   if(file_mutex == SEM_FAILED){
-    perror("FILE_WRITE SEMAPHORE FAILED.\n");
+    fprintf(stderr, "sem_open() failed. errno:%d\n", errno);
+    if(errno == EEXIST){
+      printf("Semaphore already exists \n");
+    }
     exit(0);
   }
 }
 
 void sharedmem()
 {
+  printf("YA\n");
   shmid = shmget(IPC_PRIVATE, sizeof(shm_t), IPC_CREAT | 0777);
   if (shmid == -1)
   {
@@ -131,7 +145,7 @@ void sharedmem()
   }
 
   shm = (shm_t *)shmat(shmid, NULL, 0);
-
+  printf("help\n");
   if (shm == NULL)
   {
     perror("FAILED ATTACHING SHARED MEMORY!");
@@ -157,43 +171,29 @@ void createThreads()
 void consoleMenu()
 {
   printf("\t MENU \t\n");
+  printf("Write the option u want!!!\n");
   printf(" 1: EXIT\n 2: STATS\n 3: RESET\n 4: SENSORS\n 5: ADD ALERT\n 6: REMOVE ALERT\n 7: LIST ALERTS \n");
-  int choice;
-  scanf("%d", &choice);
-  if (choice > 7)
-  {
-    printf("Incorrect option, please try again!!\n");
-    consoleMenu();
-  }
-  else
-  {
-    switch (choice)
-    {
-    case 1:
+  char choice[15];
+  fgets(choice, sizeof(choice),stdin);
+    if(strcmp(choice,"exit\n") == 0){
       exit(0);
-    case 2:
+    }else if(strcmp(choice,"stats\n") == 0){
       printf("You're in stats!!!\n");
-      break;
-    case 3:
+    }else if(strcmp(choice,"reset\n") == 0){
       printf("You're in reset!!!\n");
-      break;
-    case 4:
+    }else if(strcmp(choice,"sensors\n") == 0){
       printf("You're in sensors!!!\n");
-      break;
-    case 5:
+    }else if(strcmp(choice,"add alert\n") == 0){
       printf("You're in add alert!!!\n");
-      break;
-    case 6:
+    }else if(strcmp(choice,"remove alert\n") == 0){
       printf("You're in remove alert!!!\n");
-      break;
-    case 7:
+    }else if(strcmp(choice,"list alerts\n") == 0){
       printf("You're in list alerts!!!\n");
-      break;
-    default:
-      printf("Nao existe essa opção!!!\n");
+    }else{
+      printf("Nao existe essa opção, tente outra vez!!!\n");
       consoleMenu();
     }
-  }
+
 }
 
 void end_it_all()
@@ -216,17 +216,18 @@ void waitforchilds()
 int main(int argc, char **argv)
 {
   logfile = fopen("log.txt", "w");
-  //if((*shm).start == false){
+  createSem();
+  sharedmem();
+  if(shm->start != true){
     //printf("YEET\n");
-    //logging("SIMULATOR STARTING\n");
-    //shm->start = true;
-  //}
+    logging("SIMULATOR STARTING\n");
+    shm->start = true;
+  }
 
   if (argc == 3)
   {
     if (strcmp(argv[1], "user_console") == 0)
     {
-
       printf("This is the user console!!! \n");
       strcpy(ConsoleID, argv[2]);
       printf("Console ID: %s\n", ConsoleID);
@@ -234,25 +235,16 @@ int main(int argc, char **argv)
     }
     else if (strcmp(argv[1], "home_iot") == 0)
     {
-      /*logfile = fopen("log.txt", "w");
-      time_t clock;
-      struct tm *timeinfo;
-      time(&clock);
-      timeinfo = localtime(&clock);
-      sprintf(logger, "%d:%d:%d SIMULATOR STARTING\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-      printf("%s", logger);
-      fprintf(logfile, "%s", logger);
-      sleep(1);
-      */
+
       char *ConfName;
       ConfName = (char *)malloc(100 * sizeof(char));
       ConfName = argv[2];
       printf("This is the system Manager!!! \n");
       confAttribution(ConfName);
-      sharedmem();
-      createThreads();
 
-      for (int i = 0; i < n_workers; i++)
+      createThreads();
+      printf("OIOIOI\n");
+      for (int i = 0; i < shm->n_workers; i++)
       {
         pid = fork();
         if (pid == 0)
