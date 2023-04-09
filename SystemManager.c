@@ -19,14 +19,16 @@
 #include "structs.h"
 
 #define bufferLength 255
-//#define ConfFile
+#define stringLength 200
+// #define ConfFile
 
 // global variables
 int shmid;
 
 FILE *conf;
-//FILE *log;
+FILE *logfile;
 char buffer[bufferLength];
+char logger[stringLength];
 int queue_size;
 int n_workers;
 int max_keys;
@@ -38,6 +40,18 @@ pthread_t dispacher;
 pthread_t sensorReader;
 pthread_t consoleReader;
 
+void logging(char string[])
+{
+  logfile = fopen("log.txt", "a+");
+  time_t clock;
+  struct tm *timeinfo;
+  time(&clock);
+  timeinfo = localtime(&clock);
+  sprintf(logger, "%d:%d:%d %s\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, string);
+  printf("%s", logger);
+  fprintf(logfile, "%s", logger);
+  sleep(1);
+}
 void confAttribution(char StringName[])
 {
   conf = fopen(StringName, "r");
@@ -80,9 +94,10 @@ void confAttribution(char StringName[])
   // printf("SAO ESTAS : %d, %d, %d, %d, %d \n",queue_size,n_workers,max_keys,max_sensors,max_alerts);
 }
 
-void *thread_test(){
-  pthread_t tid= pthread_self();
-  printf("Thread %ld \n",tid);
+void *thread_test()
+{
+  pthread_t tid = pthread_self();
+  printf("Thread %ld \n", tid);
   pthread_exit(NULL);
 }
 
@@ -103,28 +118,37 @@ void sharedmem()
     exit(0);
   }
 
-  printf("SHARED MEMORY CREATED AND ATTACHED!\n");
+  logging("SHARED MEMORY CREATED AND ATTACHED!");
 }
 
-void createThreads(){
-  pthread_create(&dispacher,NULL,thread_test,NULL);
-  pthread_create(&sensorReader,NULL,thread_test,NULL);
-  pthread_create(&consoleReader,NULL,thread_test,NULL);
-  pthread_join(dispacher,NULL);
-  pthread_join(sensorReader,NULL);
-  pthread_join(consoleReader,NULL);
+void createThreads()
+{
+  pthread_create(&dispacher, NULL, thread_test, NULL);
+  logging("THREAD DISPACHER CREATED");
+  pthread_create(&sensorReader, NULL, thread_test, NULL);
+  logging("THREAD SENSOR_READER CREATED");
+  pthread_create(&consoleReader, NULL, thread_test, NULL);
+  logging("THREAD CONSOLE_READER CREATED");
+  pthread_join(dispacher, NULL);
+  pthread_join(sensorReader, NULL);
+  pthread_join(consoleReader, NULL);
 }
 
-void consoleMenu(){
+void consoleMenu()
+{
   printf("\t MENU \t\n");
   printf(" 1: EXIT\n 2: STATS\n 3: RESET\n 4: SENSORS\n 5: ADD ALERT\n 6: REMOVE ALERT\n 7: LIST ALERTS \n");
   int choice;
   scanf("%d", &choice);
-  if(choice >7 ){
-    printf("Nao existe essa opçao!!\n");
+  if (choice > 7)
+  {
+    printf("Incorrect option, please try again!!\n");
     consoleMenu();
-  }else{
-  switch(choice){
+  }
+  else
+  {
+    switch (choice)
+    {
     case 1:
       exit(0);
     case 2:
@@ -148,14 +172,15 @@ void consoleMenu(){
     default:
       printf("Nao existe essa opção!!!\n");
       consoleMenu();
+    }
   }
-}
 }
 
 void end_it_all()
 {
   shmdt(shm);
   shmctl(shmid, IPC_RMID, NULL);
+  fclose(logfile);
 }
 
 void waitforchilds()
@@ -168,28 +193,39 @@ void waitforchilds()
 
 int main(int argc, char **argv)
 {
-  /*log = fopen("log.txt","a+");
-  time_t clock;
-  struct tm *timeinfo;
-  time(&clock);
-  timeinfo = localtime(&clock);
-  fprintf(log, "%d:%d:%d SIMULATOR STARTING\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-  sleep(1);*/
+  logfile = fopen("log.txt", "w");
 
   if (argc == 3)
   {
     if (strcmp(argv[1], "user_console") == 0)
     {
-      printf("This is the user console!!! \n");
+      time_t clock;
+      struct tm *timeinfo;
+      time(&clock);
+      timeinfo = localtime(&clock);
+      sprintf(logger, "%d:%d:%d SIMULATOR STARTING\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+      printf("%s", logger);
+      fprintf(logfile, "%s", logger);
+      sleep(1);
+      // printf("This is the user console!!! \n");
       strcpy(ConsoleID, argv[2]);
-      printf("Console ID: %s\n",ConsoleID);
+      printf("Console ID: %s\n", ConsoleID);
       consoleMenu();
-
     }
     else if (strcmp(argv[1], "home_iot") == 0)
     {
-      char *ConfName ;
-      ConfName= (char*)malloc(100* sizeof(char));
+      /*logfile = fopen("log.txt", "w");
+      time_t clock;
+      struct tm *timeinfo;
+      time(&clock);
+      timeinfo = localtime(&clock);
+      sprintf(logger, "%d:%d:%d SIMULATOR STARTING\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+      printf("%s", logger);
+      fprintf(logfile, "%s", logger);
+      sleep(1);
+      */
+      char *ConfName;
+      ConfName = (char *)malloc(100 * sizeof(char));
       ConfName = argv[2];
       printf("This is the system Manager!!! \n");
       confAttribution(ConfName);
@@ -243,8 +279,9 @@ int main(int argc, char **argv)
     if (strcmp(argv[1], "sensor") == 0)
     {
       printf("This is the sensor!!! \n");
-      sensor sens;//to do: confirmar que a infor esta correta!
-      if(argv[2][2] == '\0' || argv[4][2] == '\0'){
+      sensor sens; // to do: confirmar que a infor esta correta!
+      if (argv[2][2] == '\0' || argv[4][2] == '\0')
+      {
         perror("COMMAND ARGUMENTS WRONG!!!\n");
         exit(0);
       }
@@ -253,7 +290,7 @@ int main(int argc, char **argv)
       strcpy(sens.key, argv[4]);
       sens.min = atoi(argv[5]);
       sens.max = atoi(argv[6]);
-      printf(" HERE'S THE INFO: %s, %d, %s, %d, %d ",sens.id,sens.interval,sens.key,sens.min,sens.max);
+      printf(" HERE'S THE INFO: %s, %d, %s, %d, %d ", sens.id, sens.interval, sens.key, sens.min, sens.max);
     }
     else
     {
