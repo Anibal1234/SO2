@@ -5,8 +5,12 @@
 
 
 typedef struct Shared {
-    int treta1;
-    int treta2;
+    bool start;
+    int queue_size;
+    int n_workers;
+    int max_keys;
+    int max_sensors;
+    int max_alerts;
 } shm_t;
 
 shm_t* shm;

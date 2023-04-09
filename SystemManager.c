@@ -24,11 +24,11 @@
 
 // global variables
 int shmid;
-
 FILE *conf;
 FILE *logfile;
 char buffer[bufferLength];
 char logger[stringLength];
+sem_t *file_mutex;
 int queue_size;
 int n_workers;
 int max_keys;
@@ -39,6 +39,7 @@ pid_t pid;
 pthread_t dispacher;
 pthread_t sensorReader;
 pthread_t consoleReader;
+//(&shm)->start = false;
 
 void logging(char string[])
 {
@@ -60,29 +61,40 @@ void confAttribution(char StringName[])
     printf("Config file can't be opened\n");
     exit(0);
   }
+
   while (fgets(buffer, bufferLength, conf))
   {
     printf("%s\n", buffer);
     conf_counter++;
     if (conf_counter == 1)
     {
-      queue_size = atoi(buffer);
+      sem_wait(file_mutex);
+      shm->queue_size = atoi(buffer);
+      sem_post(file_mutex);
     }
     else if (conf_counter == 2)
     {
+      sem_wait(file_mutex);
       n_workers = atoi(buffer);
+      sem_post(file_mutex);
     }
     else if (conf_counter == 3)
     {
+      sem_wait(file_mutex);
       max_keys = atoi(buffer);
+      sem_post(file_mutex);
     }
     else if (conf_counter == 4)
     {
+      sem_wait(file_mutex);
       max_sensors = atoi(buffer);
+      sem_post(file_mutex);
     }
     else if (conf_counter == 5)
     {
+      sem_wait(file_mutex);
       max_alerts = atoi(buffer);
+      sem_post(file_mutex);
     }
     else
     {
@@ -99,6 +111,14 @@ void *thread_test()
   pthread_t tid = pthread_self();
   printf("Thread %ld \n", tid);
   pthread_exit(NULL);
+}
+
+void createSem(){
+  file_mutex = sem_open("file_write", O_CREAT|O_EXCL , 0700, 1);
+  if(file_mutex == SEM_FAILED){
+    perror("FILE_WRITE SEMAPHORE FAILED.\n");
+    exit(0);
+  }
 }
 
 void sharedmem()
@@ -180,6 +200,8 @@ void end_it_all()
 {
   shmdt(shm);
   shmctl(shmid, IPC_RMID, NULL);
+  sem_close(file_mutex);
+  sem_unlink("file_write");
   fclose(logfile);
 }
 
@@ -194,20 +216,18 @@ void waitforchilds()
 int main(int argc, char **argv)
 {
   logfile = fopen("log.txt", "w");
+  //if((*shm).start == false){
+    //printf("YEET\n");
+    //logging("SIMULATOR STARTING\n");
+    //shm->start = true;
+  //}
 
   if (argc == 3)
   {
     if (strcmp(argv[1], "user_console") == 0)
     {
-      time_t clock;
-      struct tm *timeinfo;
-      time(&clock);
-      timeinfo = localtime(&clock);
-      sprintf(logger, "%d:%d:%d SIMULATOR STARTING\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-      printf("%s", logger);
-      fprintf(logfile, "%s", logger);
-      sleep(1);
-      // printf("This is the user console!!! \n");
+
+      printf("This is the user console!!! \n");
       strcpy(ConsoleID, argv[2]);
       printf("Console ID: %s\n", ConsoleID);
       consoleMenu();
