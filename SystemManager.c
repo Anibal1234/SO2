@@ -225,11 +225,13 @@ void end_it_all()
   shmctl(shmid, IPC_RMID, NULL);
   sem_close(file_mutex);
   sem_unlink("file_write");
+  //logging("SIMULATOR CLOSING");
   fclose(logfile);
 }
 
 void waitforchilds()
 {
+  //logging("SIMULATOR WAITING FOR LAST TASKS TO FINISH");
   for (int i = 0; i < n_workers + 1; i++)
   {
     wait(NULL);
@@ -341,7 +343,6 @@ int main(int argc, char **argv)
     printf("Invalid Option\n");
     exit(0);
   }
-
   waitforchilds();
   end_it_all();
   exit(0);
