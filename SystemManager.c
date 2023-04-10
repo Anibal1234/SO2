@@ -30,11 +30,7 @@ FILE *logfile;
 char buffer[bufferLength];
 char logger[stringLength];
 sem_t *file_mutex;
-int queue_size;
-int n_workers;
-int max_keys;
-int max_sensors;
-int max_alerts;
+
 int conf_counter = 0;
 pid_t pid;
 pthread_t dispacher;
@@ -75,35 +71,30 @@ void confAttribution(char StringName[])
       sem_wait(file_mutex);
       shm->queue_size = atoi(buffer);
       sem_post(file_mutex);
-      printf("funcionou?: %d \n", shm->queue_size);
     }
     else if (conf_counter == 2)
     {
       sem_wait(file_mutex);
       shm->n_workers = atoi(buffer);
       sem_post(file_mutex);
-      printf("funcionou?: %d \n", shm->n_workers);
     }
     else if (conf_counter == 3)
     {
       sem_wait(file_mutex);
       shm->max_keys = atoi(buffer);
       sem_post(file_mutex);
-      printf("funcionou?: %d \n", shm->max_keys);
     }
     else if (conf_counter == 4)
     {
       sem_wait(file_mutex);
       shm->max_sensors = atoi(buffer);
       sem_post(file_mutex);
-      printf("funcionou?: %d \n", shm->max_sensors);
     }
     else if (conf_counter == 5)
     {
       sem_wait(file_mutex);
       shm->max_alerts = atoi(buffer);
       sem_post(file_mutex);
-      printf("funcionou?: %d \n", shm->max_alerts);
     }
     else
     {
@@ -126,7 +117,7 @@ void *thread_test()
 
 void createSem()
 {
-  printf("YEEEEEEEE\n");
+  sem_close(file_mutex);
   sem_unlink("file_write");
   file_mutex = sem_open("file_write", O_CREAT | O_EXCL, 0700, 1);
   if (file_mutex == SEM_FAILED)
@@ -140,10 +131,36 @@ void createSem()
   }
 }
 
-void sharedmem()
+void accessResources(){
+  shmid = shmget(1234, sizeof(shm_t), 0777);
+  if (shmid == -1)
+  {
+    perror("FAILED TO ACCESS SHARED MEMORY!");
+    exit(0);
+  }
+  shm = (shm_t *)shmat(shmid, NULL, 0);
+  if (shm == NULL)
+  {
+    perror("FAILED ATTACHING SHARED MEMORY!");
+    exit(0);
+  }
+
+  file_mutex = sem_open("file_write",0);
+  if (file_mutex == SEM_FAILED)
+  {
+    fprintf(stderr, "sem_open() failed. errno:%d\n", errno);
+    if (errno == EEXIST)
+    {
+      printf("Semaphore already exists \n");
+    }
+    exit(0);
+  }
+
+}
+
+void createsharedmem()
 {
-  printf("YA\n");
-  shmid = shmget(IPC_PRIVATE, sizeof(shm_t), IPC_CREAT | 0777);
+  shmid = shmget(1234, sizeof(shm_t), IPC_CREAT | 0777);
   if (shmid == -1)
   {
     perror("FAILED TO CREATE SHARED MEMORY!");
@@ -151,7 +168,6 @@ void sharedmem()
   }
 
   shm = (shm_t *)shmat(shmid, NULL, 0);
-  printf("help\n");
   if (shm == NULL)
   {
     perror("FAILED ATTACHING SHARED MEMORY!");
@@ -191,26 +207,32 @@ void consoleMenu()
   else if (strcmp(choice, "stats\n") == 0)
   {
     printf("You're in stats!!!\n");
+    consoleMenu();
   }
   else if (strcmp(choice, "reset\n") == 0)
   {
     printf("You're in reset!!!\n");
+    consoleMenu();
   }
   else if (strcmp(choice, "sensors\n") == 0)
   {
     printf("You're in sensors!!!\n");
+    consoleMenu();
   }
   else if (strcmp(choice, "add alert\n") == 0)
   {
     printf("You're in add alert!!!\n");
+    consoleMenu();
   }
   else if (strcmp(choice, "remove alert\n") == 0)
   {
     printf("You're in remove alert!!!\n");
+    consoleMenu();
   }
   else if (strcmp(choice, "list alerts\n") == 0)
   {
     printf("You're in list alerts!!!\n");
+    consoleMenu();
   }
   else
   {
@@ -221,18 +243,20 @@ void consoleMenu()
 
 void end_it_all()
 {
+  printf("VIM AQUI \n");
   shmdt(shm);
   shmctl(shmid, IPC_RMID, NULL);
   sem_close(file_mutex);
   sem_unlink("file_write");
-  //logging("SIMULATOR CLOSING");
   fclose(logfile);
 }
 
 void waitforchilds()
 {
-  //logging("SIMULATOR WAITING FOR LAST TASKS TO FINISH");
-  for (int i = 0; i < n_workers + 1; i++)
+  if(pid > 0){
+  logging("HOME_IOT SIMULATOR WAITING FOR LAST TASKS TO FINISH");
+  }
+  for (int i = 0; i < shm->n_workers + 1; i++)
   {
     wait(NULL);
   }
@@ -240,43 +264,45 @@ void waitforchilds()
 
 int main(int argc, char **argv)
 {
-  logfile = fopen("log.txt", "w");
-  logging("SIMULATOR STARTING");
-  createSem();
-  sharedmem();
-  if (shm->start != true)
-  {
-    // printf("YEET\n");
-
-    shm->start = true;
-  }
 
   if (argc == 3)
   {
     if (strcmp(argv[1], "user_console") == 0)
     {
+      printf("MY PID IS: %d\n", getpid());
       printf("This is the user console!!! \n");
       strcpy(ConsoleID, argv[2]);
       printf("Console ID: %s\n", ConsoleID);
+      accessResources();
       consoleMenu();
+
     }
     else if (strcmp(argv[1], "home_iot") == 0)
     {
-
+      printf("MY PID IS: %d\n", getpid());
+      logfile = fopen("log.txt", "w");
+      logging("SIMULATOR STARTING");
       char *ConfName;
       ConfName = (char *)malloc(100 * sizeof(char));
       ConfName = argv[2];
       printf("This is the system Manager!!! \n");
+      createSem();
+      createsharedmem();
+      shm->start = true;
       confAttribution(ConfName);
-
       createThreads();
-      sleep(1);
-      printf("OIOIOI\n");
       for (int i = 0; i < shm->n_workers; i++)
       {
         pid = fork();
         if (pid == 0)
         {
+          char str[14];
+          char num[2];
+          strcpy(str, "WORKER ");
+          sprintf(num,"%d",i+1);
+          strcat(str,num);
+          strcat(str," READY\n");
+          logging(str);
           printf("%d : I'm a child/worker process with a pid of %d and my dad is %d\n", i + 1, getpid(), getppid());
           break;
         }
@@ -295,6 +321,7 @@ int main(int argc, char **argv)
         pid = fork();
         if (pid == 0)
         {
+          logging("PROCESS ALERTS_WATCHER CREATED\n");
           printf("I'm the alerts child process with a father with the id of %d\n", getppid());
         }
         else if (pid < 0)
@@ -307,6 +334,12 @@ int main(int argc, char **argv)
           printf("I'M the DADDY !!!\n");
         }
       }
+      waitforchilds();
+      if(pid > 0 ){
+      end_it_all();
+      logging("HOME_IOT SIMULATOR CLOSING\n");
+      }
+
     }
     else
     {
@@ -318,7 +351,10 @@ int main(int argc, char **argv)
   {
     if (strcmp(argv[1], "sensor") == 0)
     {
+      printf("MY PID IS: %d\n", getpid());
       printf("This is the sensor!!! \n");
+      accessResources();
+      printf(" N_WORKERS SIZE : %d\n", shm->n_workers);
       sensor sens; // to do: confirmar que a infor esta correta!
       if (argv[2][2] == '\0' || argv[4][2] == '\0')
       {
@@ -343,7 +379,7 @@ int main(int argc, char **argv)
     printf("Invalid Option\n");
     exit(0);
   }
-  waitforchilds();
-  end_it_all();
+
+  //end_it_all();
   exit(0);
 }
