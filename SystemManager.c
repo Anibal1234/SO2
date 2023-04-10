@@ -40,21 +40,22 @@ pid_t pid;
 pthread_t dispacher;
 pthread_t sensorReader;
 pthread_t consoleReader;
+
+struct tm *timeinfo;
 //(&shm)->start = false;
 
 void logging(char string[])
 {
-  sem_wait(file_mutex);
-  logfile = fopen("log.txt", "a+");
+  fflush(logfile);
+  logfile = fopen("log.txt", "a");
   time_t clock;
-  struct tm *timeinfo;
   time(&clock);
   timeinfo = localtime(&clock);
-  sprintf(logger, "%d:%d:%d %s\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, string);
-  printf("%s", logger);
-  fprintf(logfile, "%s", logger);
+  sprintf(logger, "%d:%d:%d %s", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, string);
+  fprintf(logfile, "%s\n", logger);
+  printf("%s\n", logger);
   sleep(1);
-  sem_post(file_mutex);
+  fflush(logfile);
 }
 void confAttribution(char StringName[])
 {
@@ -116,18 +117,23 @@ void confAttribution(char StringName[])
 
 void *thread_test()
 {
+
   pthread_t tid = pthread_self();
   printf("Thread %ld \n", tid);
+  sleep(1);
   pthread_exit(NULL);
 }
 
-void createSem(){
+void createSem()
+{
   printf("YEEEEEEEE\n");
   sem_unlink("file_write");
-  file_mutex = sem_open("file_write", O_CREAT| O_EXCL , 0700, 1);
-  if(file_mutex == SEM_FAILED){
+  file_mutex = sem_open("file_write", O_CREAT | O_EXCL, 0700, 1);
+  if (file_mutex == SEM_FAILED)
+  {
     fprintf(stderr, "sem_open() failed. errno:%d\n", errno);
-    if(errno == EEXIST){
+    if (errno == EEXIST)
+    {
       printf("Semaphore already exists \n");
     }
     exit(0);
@@ -158,14 +164,17 @@ void sharedmem()
 void createThreads()
 {
   pthread_create(&dispacher, NULL, thread_test, NULL);
-  logging("THREAD DISPACHER CREATED");
+
   pthread_create(&sensorReader, NULL, thread_test, NULL);
-  logging("THREAD SENSOR_READER CREATED");
+
   pthread_create(&consoleReader, NULL, thread_test, NULL);
-  logging("THREAD CONSOLE_READER CREATED");
+
   pthread_join(dispacher, NULL);
   pthread_join(sensorReader, NULL);
   pthread_join(consoleReader, NULL);
+  logging("THREAD DISPACHER CREATED");
+  logging("THREAD SENSOR_READER CREATED");
+  logging("THREAD CONSOLE_READER CREATED");
 }
 
 void consoleMenu()
@@ -174,26 +183,40 @@ void consoleMenu()
   printf("Write the option u want!!!\n");
   printf(" 1: EXIT\n 2: STATS\n 3: RESET\n 4: SENSORS\n 5: ADD ALERT\n 6: REMOVE ALERT\n 7: LIST ALERTS \n");
   char choice[15];
-  fgets(choice, sizeof(choice),stdin);
-    if(strcmp(choice,"exit\n") == 0){
-      exit(0);
-    }else if(strcmp(choice,"stats\n") == 0){
-      printf("You're in stats!!!\n");
-    }else if(strcmp(choice,"reset\n") == 0){
-      printf("You're in reset!!!\n");
-    }else if(strcmp(choice,"sensors\n") == 0){
-      printf("You're in sensors!!!\n");
-    }else if(strcmp(choice,"add alert\n") == 0){
-      printf("You're in add alert!!!\n");
-    }else if(strcmp(choice,"remove alert\n") == 0){
-      printf("You're in remove alert!!!\n");
-    }else if(strcmp(choice,"list alerts\n") == 0){
-      printf("You're in list alerts!!!\n");
-    }else{
-      printf("Nao existe essa opção, tente outra vez!!!\n");
-      consoleMenu();
-    }
-
+  fgets(choice, sizeof(choice), stdin);
+  if (strcmp(choice, "exit\n") == 0)
+  {
+    exit(0);
+  }
+  else if (strcmp(choice, "stats\n") == 0)
+  {
+    printf("You're in stats!!!\n");
+  }
+  else if (strcmp(choice, "reset\n") == 0)
+  {
+    printf("You're in reset!!!\n");
+  }
+  else if (strcmp(choice, "sensors\n") == 0)
+  {
+    printf("You're in sensors!!!\n");
+  }
+  else if (strcmp(choice, "add alert\n") == 0)
+  {
+    printf("You're in add alert!!!\n");
+  }
+  else if (strcmp(choice, "remove alert\n") == 0)
+  {
+    printf("You're in remove alert!!!\n");
+  }
+  else if (strcmp(choice, "list alerts\n") == 0)
+  {
+    printf("You're in list alerts!!!\n");
+  }
+  else
+  {
+    printf("Invalid option, try again\n");
+    consoleMenu();
+  }
 }
 
 void end_it_all()
@@ -216,11 +239,13 @@ void waitforchilds()
 int main(int argc, char **argv)
 {
   logfile = fopen("log.txt", "w");
+  logging("SIMULATOR STARTING");
   createSem();
   sharedmem();
-  if(shm->start != true){
-    //printf("YEET\n");
-    logging("SIMULATOR STARTING\n");
+  if (shm->start != true)
+  {
+    // printf("YEET\n");
+
     shm->start = true;
   }
 
@@ -243,6 +268,7 @@ int main(int argc, char **argv)
       confAttribution(ConfName);
 
       createThreads();
+      sleep(1);
       printf("OIOIOI\n");
       for (int i = 0; i < shm->n_workers; i++)
       {
@@ -257,7 +283,7 @@ int main(int argc, char **argv)
           perror("Error creating child/worker processes");
           exit(0);
         }
-        else
+        else if (pid > 0)
         {
           printf("I'M THE BIG PAPA!!!\n");
         }
@@ -282,7 +308,7 @@ int main(int argc, char **argv)
     }
     else
     {
-      printf("Opções invalidas!!\n");
+      printf("Invalid Option\n");
       exit(0);
     }
   }
@@ -302,17 +328,17 @@ int main(int argc, char **argv)
       strcpy(sens.key, argv[4]);
       sens.min = atoi(argv[5]);
       sens.max = atoi(argv[6]);
-      printf(" HERE'S THE INFO: %s, %d, %s, %d, %d ", sens.id, sens.interval, sens.key, sens.min, sens.max);
+      printf("HERE'S THE INFO: %s, %d, %s, %d, %d\n", sens.id, sens.interval, sens.key, sens.min, sens.max);
     }
     else
     {
-      printf("Opções invalidas!!!\n");
+      printf("Invalid Option\n");
       exit(0);
     }
   }
   else
   {
-    printf("Opçoes invalidas!\n");
+    printf("Invalid Option\n");
     exit(0);
   }
 
