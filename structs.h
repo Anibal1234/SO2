@@ -1,6 +1,9 @@
 #ifndef UNTITLED1_STRUCTS_H
 #define UNTITLED1_STRUCTS_H
 
+// Anibal Rodrigues 2019224911
+//Guilherme Junqueira 2019221958
+
 #include <stdbool.h>
 
 

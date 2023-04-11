@@ -1,5 +1,5 @@
-// gcc -Wall -pthread SystemManager.c -o run
-
+// Anibal Rodrigues 2019224911
+//Guilherme Junqueira 2019221958
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
@@ -21,7 +21,7 @@
 
 #define bufferLength 255
 #define stringLength 200
-// #define ConfFile
+
 
 // global variables
 int shmid;
@@ -30,15 +30,12 @@ FILE *logfile;
 char buffer[bufferLength];
 char logger[stringLength];
 sem_t *file_mutex;
-
 int conf_counter = 0;
 pid_t pid;
 pthread_t dispacher;
 pthread_t sensorReader;
 pthread_t consoleReader;
-
 struct tm *timeinfo;
-//(&shm)->start = false;
 
 void logging(char string[])
 {
@@ -50,7 +47,6 @@ void logging(char string[])
   sprintf(logger, "%d:%d:%d %s", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, string);
   fprintf(logfile, "%s\n", logger);
   printf("%s\n", logger);
-  sleep(1);
   fflush(logfile);
 }
 void confAttribution(char StringName[])
@@ -64,7 +60,7 @@ void confAttribution(char StringName[])
 
   while (fgets(buffer, bufferLength, conf))
   {
-    printf("%s\n", buffer);
+    //printf("%s\n", buffer);
     conf_counter++;
     if (conf_counter == 1)
     {
@@ -103,7 +99,7 @@ void confAttribution(char StringName[])
     }
   }
   fclose(conf);
-  // printf("SAO ESTAS : %d, %d, %d, %d, %d \n",queue_size,n_workers,max_keys,max_sensors,max_alerts);
+  // printf("Conf info: %d, %d, %d, %d, %d \n",queue_size,n_workers,max_keys,max_sensors,max_alerts);
 }
 
 void *thread_test()
@@ -241,9 +237,28 @@ void consoleMenu()
   }
 }
 
+int alfanum_check(char str[],int flag){
+  if(flag == 1){//check for alphanumeric only
+  for(int i = 0; i<strlen(str);i++){
+    if(!isalnum(str[i])){
+      return 0;//not alphanumeric
+    }
+  }
+  return 1;// alphanumeric
+}else if(flag == 2){//check for alphanumeric and _
+  for(int i = 0; i<strlen(str);i++){
+    if(!isalnum(str[i]) && str[i] != '_'){
+      return 0;//not alphanumeric or _
+    }
+  }
+  return 1;
+}else{
+  return 0;
+}
+}
+
 void end_it_all()
 {
-  printf("VIM AQUI \n");
   shmdt(shm);
   shmctl(shmid, IPC_RMID, NULL);
   sem_close(file_mutex);
@@ -269,8 +284,8 @@ int main(int argc, char **argv)
   {
     if (strcmp(argv[1], "user_console") == 0)
     {
-      printf("MY PID IS: %d\n", getpid());
-      printf("This is the user console!!! \n");
+      //printf("MY PID IS: %d\n", getpid());
+      //printf("This is the user console!!! \n");
       strcpy(ConsoleID, argv[2]);
       printf("Console ID: %s\n", ConsoleID);
       accessResources();
@@ -279,13 +294,13 @@ int main(int argc, char **argv)
     }
     else if (strcmp(argv[1], "home_iot") == 0)
     {
-      printf("MY PID IS: %d\n", getpid());
+      //printf("MY PID IS: %d\n", getpid());
       logfile = fopen("log.txt", "w");
       logging("SIMULATOR STARTING");
       char *ConfName;
       ConfName = (char *)malloc(100 * sizeof(char));
       ConfName = argv[2];
-      printf("This is the system Manager!!! \n");
+      //printf("This is the system Manager!!! \n");
       createSem();
       createsharedmem();
       shm->start = true;
@@ -301,9 +316,9 @@ int main(int argc, char **argv)
           strcpy(str, "WORKER ");
           sprintf(num,"%d",i+1);
           strcat(str,num);
-          strcat(str," READY\n");
+          strcat(str," READY");
           logging(str);
-          printf("%d : I'm a child/worker process with a pid of %d and my dad is %d\n", i + 1, getpid(), getppid());
+          //printf("%d : I'm a child/worker process with a pid of %d and my dad is %d\n", i + 1, getpid(), getppid());
           break;
         }
         else if (pid < 0)
@@ -313,7 +328,7 @@ int main(int argc, char **argv)
         }
         else if (pid > 0)
         {
-          printf("I'M THE BIG PAPA!!!\n");
+          //printf("I'M THE BIG PAPA!!!\n");
         }
       }
       if (pid > 0)
@@ -321,8 +336,8 @@ int main(int argc, char **argv)
         pid = fork();
         if (pid == 0)
         {
-          logging("PROCESS ALERTS_WATCHER CREATED\n");
-          printf("I'm the alerts child process with a father with the id of %d\n", getppid());
+          logging("PROCESS ALERTS_WATCHER CREATED");
+          //printf("I'm the alerts child process with a father with the id of %d\n", getppid());
         }
         else if (pid < 0)
         {
@@ -331,13 +346,13 @@ int main(int argc, char **argv)
         }
         else
         {
-          printf("I'M the DADDY !!!\n");
+          //printf("I'M the DADDY !!!\n");
         }
       }
       waitforchilds();
       if(pid > 0 ){
       end_it_all();
-      logging("HOME_IOT SIMULATOR CLOSING\n");
+      logging("HOME_IOT SIMULATOR CLOSING");
       }
 
     }
@@ -351,12 +366,11 @@ int main(int argc, char **argv)
   {
     if (strcmp(argv[1], "sensor") == 0)
     {
-      printf("MY PID IS: %d\n", getpid());
+      //printf("MY PID IS: %d\n", getpid());
       printf("This is the sensor!!! \n");
       accessResources();
-      printf(" N_WORKERS SIZE : %d\n", shm->n_workers);
-      sensor sens; // to do: confirmar que a infor esta correta!
-      if (argv[2][2] == '\0' || argv[4][2] == '\0')
+      sensor sens;
+      if (argv[2][2] == '\0' || argv[4][2] == '\0' || alfanum_check(argv[2],1) == 0 || alfanum_check(argv[4],2) == 0 )
       {
         perror("COMMAND ARGUMENTS WRONG!!!\n");
         exit(0);
@@ -380,6 +394,5 @@ int main(int argc, char **argv)
     exit(0);
   }
 
-  //end_it_all();
   exit(0);
 }
