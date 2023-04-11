@@ -39,6 +39,7 @@ struct tm *timeinfo;
 
 void logging(char string[])
 {
+  sem_wait(file_mutex);
   fflush(logfile);
   logfile = fopen("log.txt", "a");
   time_t clock;
@@ -48,8 +49,9 @@ void logging(char string[])
   fprintf(logfile, "%s\n", logger);
   printf("%s\n", logger);
   fflush(logfile);
+  sem_post(file_mutex);
 }
-void confAttribution(char StringName[])
+void conf_Attribution(char StringName[])
 {
   conf = fopen(StringName, "r");
   if (conf == NULL)
@@ -107,11 +109,10 @@ void *thread_test()
 
   pthread_t tid = pthread_self();
   printf("Thread %ld \n", tid);
-  sleep(1);
   pthread_exit(NULL);
 }
 
-void createSem()
+void create_Sem()
 {
   sem_close(file_mutex);
   sem_unlink("file_write");
@@ -127,7 +128,7 @@ void createSem()
   }
 }
 
-void accessResources(){
+void access_Resources(){
   shmid = shmget(1234, sizeof(shm_t), 0777);
   if (shmid == -1)
   {
@@ -154,7 +155,7 @@ void accessResources(){
 
 }
 
-void createsharedmem()
+void create_shared_mem()
 {
   shmid = shmget(1234, sizeof(shm_t), IPC_CREAT | 0777);
   if (shmid == -1)
@@ -173,7 +174,7 @@ void createsharedmem()
   logging("SHARED MEMORY CREATED AND ATTACHED!");
 }
 
-void createThreads()
+void create_Threads()
 {
   pthread_create(&dispacher, NULL, thread_test, NULL);
 
@@ -189,11 +190,11 @@ void createThreads()
   logging("THREAD CONSOLE_READER CREATED");
 }
 
-void consoleMenu()
+void console_Menu()
 {
   printf("\t MENU \t\n");
   printf("Write the option u want!!!\n");
-  printf(" 1: EXIT\n 2: STATS\n 3: RESET\n 4: SENSORS\n 5: ADD ALERT\n 6: REMOVE ALERT\n 7: LIST ALERTS \n");
+  printf(" 1: EXIT\n 2: STATS\n 3: RESET\n 4: SENSORS\n 5: ADD ALERT\n 6: REMOVE ALERT\n 7: LIST ALERTS\n");
   char choice[15];
   fgets(choice, sizeof(choice), stdin);
   if (strcmp(choice, "exit\n") == 0)
@@ -203,37 +204,37 @@ void consoleMenu()
   else if (strcmp(choice, "stats\n") == 0)
   {
     printf("You're in stats!!!\n");
-    consoleMenu();
+    console_Menu();
   }
   else if (strcmp(choice, "reset\n") == 0)
   {
     printf("You're in reset!!!\n");
-    consoleMenu();
+    console_Menu();
   }
   else if (strcmp(choice, "sensors\n") == 0)
   {
     printf("You're in sensors!!!\n");
-    consoleMenu();
+    console_Menu();
   }
   else if (strcmp(choice, "add alert\n") == 0)
   {
     printf("You're in add alert!!!\n");
-    consoleMenu();
+    console_Menu();
   }
   else if (strcmp(choice, "remove alert\n") == 0)
   {
     printf("You're in remove alert!!!\n");
-    consoleMenu();
+    console_Menu();
   }
   else if (strcmp(choice, "list alerts\n") == 0)
   {
     printf("You're in list alerts!!!\n");
-    consoleMenu();
+    console_Menu();
   }
   else
   {
     printf("Invalid option, try again\n");
-    consoleMenu();
+    console_Menu();
   }
 }
 
@@ -266,7 +267,7 @@ void end_it_all()
   fclose(logfile);
 }
 
-void waitforchilds()
+void wait_for_childs()
 {
   if(pid > 0){
   logging("HOME_IOT SIMULATOR WAITING FOR LAST TASKS TO FINISH");
@@ -288,24 +289,25 @@ int main(int argc, char **argv)
       //printf("This is the user console!!! \n");
       strcpy(ConsoleID, argv[2]);
       printf("Console ID: %s\n", ConsoleID);
-      accessResources();
-      consoleMenu();
+      access_Resources();
+      console_Menu();
 
     }
     else if (strcmp(argv[1], "home_iot") == 0)
     {
       //printf("MY PID IS: %d\n", getpid());
+      create_Sem();
       logfile = fopen("log.txt", "w");
       logging("SIMULATOR STARTING");
       char *ConfName;
       ConfName = (char *)malloc(100 * sizeof(char));
       ConfName = argv[2];
       //printf("This is the system Manager!!! \n");
-      createSem();
-      createsharedmem();
+      
+      create_shared_mem();
       shm->start = true;
-      confAttribution(ConfName);
-      createThreads();
+      conf_Attribution(ConfName);
+      create_Threads();
       for (int i = 0; i < shm->n_workers; i++)
       {
         pid = fork();
@@ -349,10 +351,10 @@ int main(int argc, char **argv)
           //printf("I'M the DADDY !!!\n");
         }
       }
-      waitforchilds();
+      wait_for_childs();
       if(pid > 0 ){
-      end_it_all();
       logging("HOME_IOT SIMULATOR CLOSING");
+      end_it_all();
       }
 
     }
@@ -368,7 +370,7 @@ int main(int argc, char **argv)
     {
       //printf("MY PID IS: %d\n", getpid());
       printf("This is the sensor!!! \n");
-      accessResources();
+      access_Resources();
       sensor sens;
       if (argv[2][2] == '\0' || argv[4][2] == '\0' || alfanum_check(argv[2],1) == 0 || alfanum_check(argv[4],2) == 0 )
       {
