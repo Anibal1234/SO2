@@ -41,7 +41,7 @@ void logging(char string[])
 {
   sem_wait(file_mutex);
   fflush(logfile);
-  logfile = fopen("log.txt", "a");
+  logfile = fopen("log.txt", "a");// abrir e fechar no main e verificacao dos ficheiros,se abriram bem ou nao.
   time_t clock;
   time(&clock);
   timeinfo = localtime(&clock);
@@ -158,7 +158,7 @@ void access_Resources(){
 
 void create_shared_mem()
 {
-  shmid = shmget(1234, sizeof(shm_t), IPC_CREAT | 0777);
+  shmid = shmget(1234, sizeof(shm_t), IPC_CREAT | 0777);// * max alerts
   if (shmid == -1)
   {
     perror("FAILED TO CREATE SHARED MEMORY!");
