@@ -109,6 +109,7 @@ void *thread_test()
 
   pthread_t tid = pthread_self();
   printf("Thread %ld \n", tid);
+  sleep(3);
   pthread_exit(NULL);
 }
 
@@ -303,7 +304,7 @@ int main(int argc, char **argv)
       ConfName = (char *)malloc(100 * sizeof(char));
       ConfName = argv[2];
       //printf("This is the system Manager!!! \n");
-      
+
       create_shared_mem();
       shm->start = true;
       conf_Attribution(ConfName);
@@ -320,6 +321,7 @@ int main(int argc, char **argv)
           strcat(str,num);
           strcat(str," READY");
           logging(str);
+          sleep(5);
           //printf("%d : I'm a child/worker process with a pid of %d and my dad is %d\n", i + 1, getpid(), getppid());
           break;
         }
