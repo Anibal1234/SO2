@@ -51,6 +51,28 @@ void logging(char string[])
   fflush(logfile);
   sem_post(file_mutex);
 }
+
+
+int conf_check(char inf[],int flag){
+  int aux = atoi(inf);
+  if(flag==1){
+    if(aux >= 1){
+      return 1;//WRONG
+    }else{
+      return 0;//CORRECT
+    }
+  }else if(flag == 2){
+    if(aux>=0){
+      return 1;//CORRECT
+    }else{
+      return 0;//WRONG
+    }
+  }else{
+    return 0;//WRONG
+  }
+}
+
+
 void conf_Attribution(char StringName[])
 {
   conf = fopen(StringName, "r");
@@ -64,35 +86,50 @@ void conf_Attribution(char StringName[])
   {
     //printf("%s\n", buffer);
     conf_counter++;
-    if (conf_counter == 1)
+    if (conf_counter == 1 )
     {
-      sem_wait(file_mutex);
+      if(conf_check(buffer,1) == 1){
       shm->queue_size = atoi(buffer);
-      sem_post(file_mutex);
+    }else{
+      perror("CONFIG FILE IS INCORRECT!!!\n");
+      exit(0);
+    }
     }
     else if (conf_counter == 2)
     {
-      sem_wait(file_mutex);
+      if(conf_check(buffer,1) == 1){
       shm->n_workers = atoi(buffer);
-      sem_post(file_mutex);
+    }else{
+      perror("CONFIG FILE IS INCORRECT!!!\n");
+      exit(0);
+    }
     }
     else if (conf_counter == 3)
     {
-      sem_wait(file_mutex);
+      if(conf_check(buffer,1) == 1){
       shm->max_keys = atoi(buffer);
-      sem_post(file_mutex);
+    }else{
+      perror("CONFIG FILE IS INCORRECT!!!\n");
+      exit(0);
+    }
     }
     else if (conf_counter == 4)
     {
-      sem_wait(file_mutex);
+      if(conf_check(buffer,1) == 1){
       shm->max_sensors = atoi(buffer);
-      sem_post(file_mutex);
+    }else{
+      perror("CONFIG FILE IS INCORRECT!!!\n");
+      exit(0);
+    }
     }
     else if (conf_counter == 5)
     {
-      sem_wait(file_mutex);
-      shm->max_alerts = atoi(buffer);
-      sem_post(file_mutex);
+      if(conf_check(buffer,2) == 1){
+        shm->max_alerts = atoi(buffer);
+    }else{
+      perror("CONFIG FILE IS INCORRECT!!!\n");
+      exit(0);
+      }
     }
     else
     {
@@ -101,7 +138,7 @@ void conf_Attribution(char StringName[])
     }
   }
   fclose(conf);
-  // printf("Conf info: %d, %d, %d, %d, %d \n",queue_size,n_workers,max_keys,max_sensors,max_alerts);
+  printf("Conf info: %d, %d, %d, %d, %d \n",shm->queue_size,shm->n_workers,shm->max_keys,shm->max_sensors,shm->max_alerts);
 }
 
 void *thread_test()
@@ -191,73 +228,9 @@ void create_Threads()
   logging("THREAD CONSOLE_READER CREATED");
 }
 
-void console_Menu()
-{
-  printf("\t MENU \t\n");
-  printf("Write the option u want!!!\n");
-  printf(" 1: EXIT\n 2: STATS\n 3: RESET\n 4: SENSORS\n 5: ADD ALERT\n 6: REMOVE ALERT\n 7: LIST ALERTS\n");
-  char choice[15];
-  fgets(choice, sizeof(choice), stdin);
-  if (strcmp(choice, "exit\n") == 0)
-  {
-    exit(0);
-  }
-  else if (strcmp(choice, "stats\n") == 0)
-  {
-    printf("You're in stats!!!\n");
-    console_Menu();
-  }
-  else if (strcmp(choice, "reset\n") == 0)
-  {
-    printf("You're in reset!!!\n");
-    console_Menu();
-  }
-  else if (strcmp(choice, "sensors\n") == 0)
-  {
-    printf("You're in sensors!!!\n");
-    console_Menu();
-  }
-  else if (strcmp(choice, "add alert\n") == 0)
-  {
-    printf("You're in add alert!!!\n");
-    console_Menu();
-  }
-  else if (strcmp(choice, "remove alert\n") == 0)
-  {
-    printf("You're in remove alert!!!\n");
-    console_Menu();
-  }
-  else if (strcmp(choice, "list alerts\n") == 0)
-  {
-    printf("You're in list alerts!!!\n");
-    console_Menu();
-  }
-  else
-  {
-    printf("Invalid option, try again\n");
-    console_Menu();
-  }
-}
 
-int alfanum_check(char str[],int flag){
-  if(flag == 1){//check for alphanumeric only
-  for(int i = 0; i<strlen(str);i++){
-    if(!isalnum(str[i])){
-      return 0;//not alphanumeric
-    }
-  }
-  return 1;// alphanumeric
-}else if(flag == 2){//check for alphanumeric and _
-  for(int i = 0; i<strlen(str);i++){
-    if(!isalnum(str[i]) && str[i] != '_'){
-      return 0;//not alphanumeric or _
-    }
-  }
-  return 1;
-}else{
-  return 0;
-}
-}
+
+
 
 void end_it_all()
 {
@@ -284,30 +257,21 @@ int main(int argc, char **argv)
 
   if (argc == 3)
   {
-    if (strcmp(argv[1], "user_console") == 0)
+    if (strcmp(argv[1], "home_iot") == 0)
     {
       //printf("MY PID IS: %d\n", getpid());
-      //printf("This is the user console!!! \n");
-      strcpy(ConsoleID, argv[2]);
-      printf("Console ID: %s\n", ConsoleID);
-      access_Resources();
-      console_Menu();
 
-    }
-    else if (strcmp(argv[1], "home_iot") == 0)
-    {
-      //printf("MY PID IS: %d\n", getpid());
-      create_Sem();
       logfile = fopen("log.txt", "w");
       logging("SIMULATOR STARTING");
+      conf_Attribution(ConfName);
       char *ConfName;
       ConfName = (char *)malloc(100 * sizeof(char));
       ConfName = argv[2];
       //printf("This is the system Manager!!! \n");
-
+      create_Sem();
       create_shared_mem();
       shm->start = true;
-      conf_Attribution(ConfName);
+
       create_Threads();
       for (int i = 0; i < shm->n_workers; i++)
       {
@@ -366,35 +330,9 @@ int main(int argc, char **argv)
       exit(0);
     }
   }
-  else if (argc == 7)
-  {
-    if (strcmp(argv[1], "sensor") == 0)
-    {
-      //printf("MY PID IS: %d\n", getpid());
-      printf("This is the sensor!!! \n");
-      access_Resources();
-      sensor sens;
-      if (argv[2][2] == '\0' || argv[4][2] == '\0' || alfanum_check(argv[2],1) == 0 || alfanum_check(argv[4],2) == 0 )
-      {
-        perror("COMMAND ARGUMENTS WRONG!!!\n");
-        exit(0);
-      }
-      strcpy(sens.id, argv[2]);
-      sens.interval = atoi(argv[3]);
-      strcpy(sens.key, argv[4]);
-      sens.min = atoi(argv[5]);
-      sens.max = atoi(argv[6]);
-      printf("HERE'S THE INFO: %s, %d, %s, %d, %d\n", sens.id, sens.interval, sens.key, sens.min, sens.max);
-    }
-    else
-    {
-      printf("Invalid Option\n");
-      exit(0);
-    }
-  }
   else
   {
-    printf("Invalid Option\n");
+    perror("Wrong Number of arguments!!!\n");
     exit(0);
   }
 
