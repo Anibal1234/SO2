@@ -22,7 +22,7 @@
 #define bufferLength 255
 #define stringLength 200
 
-
+data_t* confInfo;
 // global variables
 int shmid;
 FILE *conf;
@@ -36,6 +36,8 @@ pthread_t dispacher;
 pthread_t sensorReader;
 pthread_t consoleReader;
 struct tm *timeinfo;
+int channel[2];
+
 
 void logging(char string[])
 {
@@ -81,15 +83,17 @@ void conf_Attribution(char StringName[])
     printf("Config file can't be opened\n");
     exit(0);
   }
-
+  confInfo = malloc(sizeof(data_t));
   while (fgets(buffer, bufferLength, conf))
   {
-    //printf("%s\n", buffer);
+    printf("%s\n", buffer);
     conf_counter++;
     if (conf_counter == 1 )
     {
       if(conf_check(buffer,1) == 1){
-      shm->queue_size = atoi(buffer);
+        printf("e aqui %d  \n",atoi(buffer));
+        confInfo->queue_size = atoi(buffer);
+        printf("pois e\n");
     }else{
       perror("CONFIG FILE IS INCORRECT!!!\n");
       exit(0);
@@ -98,7 +102,7 @@ void conf_Attribution(char StringName[])
     else if (conf_counter == 2)
     {
       if(conf_check(buffer,1) == 1){
-      shm->n_workers = atoi(buffer);
+      confInfo->n_workers = atoi(buffer);
     }else{
       perror("CONFIG FILE IS INCORRECT!!!\n");
       exit(0);
@@ -107,7 +111,7 @@ void conf_Attribution(char StringName[])
     else if (conf_counter == 3)
     {
       if(conf_check(buffer,1) == 1){
-      shm->max_keys = atoi(buffer);
+      confInfo->max_keys = atoi(buffer);
     }else{
       perror("CONFIG FILE IS INCORRECT!!!\n");
       exit(0);
@@ -116,7 +120,7 @@ void conf_Attribution(char StringName[])
     else if (conf_counter == 4)
     {
       if(conf_check(buffer,1) == 1){
-      shm->max_sensors = atoi(buffer);
+      confInfo->max_sensors = atoi(buffer);
     }else{
       perror("CONFIG FILE IS INCORRECT!!!\n");
       exit(0);
@@ -125,7 +129,7 @@ void conf_Attribution(char StringName[])
     else if (conf_counter == 5)
     {
       if(conf_check(buffer,2) == 1){
-        shm->max_alerts = atoi(buffer);
+        confInfo->max_alerts = atoi(buffer);
     }else{
       perror("CONFIG FILE IS INCORRECT!!!\n");
       exit(0);
@@ -138,7 +142,8 @@ void conf_Attribution(char StringName[])
     }
   }
   fclose(conf);
-  printf("Conf info: %d, %d, %d, %d, %d \n",shm->queue_size,shm->n_workers,shm->max_keys,shm->max_sensors,shm->max_alerts);
+  printf("BISH\n");
+  printf("Conf info: %d, %d, %d, %d, %d \n",confInfo->queue_size,confInfo->n_workers,confInfo->max_keys,confInfo->max_sensors,confInfo->max_alerts);
 }
 
 void *thread_test()
@@ -148,6 +153,14 @@ void *thread_test()
   printf("Thread %ld \n", tid);
   sleep(3);
   pthread_exit(NULL);
+}
+
+void *dispacher(){
+  pthread_t tid = pthread_self();
+  printf("Thread %ld \n", tid);
+  open(channel[1]);
+  printf("");
+  close(channel[1]);
 }
 
 void create_Sem()
@@ -193,9 +206,20 @@ void access_Resources(){
 
 }
 
+
+void create_unnamed_pipes(){
+  if(pipe(channel) == -1){
+    perror("ERROR CREATING UNNAMED PIPE!!!!\n");
+    exit(0);
+  }
+}
+
+
 void create_shared_mem()
 {
-  shmid = shmget(1234, sizeof(shm_t), IPC_CREAT | 0777);// * max alerts
+  printf("ENTREI\n");
+  shmid = shmget(1234, confInfo->max_alerts*sizeof(shm_t), IPC_CREAT | 0777);// * max alerts
+  printf("TAMBEM\n");
   if (shmid == -1)
   {
     perror("FAILED TO CREATE SHARED MEMORY!");
@@ -236,6 +260,7 @@ void end_it_all()
 {
   shmdt(shm);
   shmctl(shmid, IPC_RMID, NULL);
+  free(confInfo);
   sem_close(file_mutex);
   sem_unlink("file_write");
   fclose(logfile);
@@ -246,7 +271,7 @@ void wait_for_childs()
   if(pid > 0){
   logging("HOME_IOT SIMULATOR WAITING FOR LAST TASKS TO FINISH");
   }
-  for (int i = 0; i < shm->n_workers + 1; i++)
+  for (int i = 0; i < confInfo->n_workers + 1; i++)
   {
     wait(NULL);
   }
@@ -259,21 +284,26 @@ int main(int argc, char **argv)
   {
     if (strcmp(argv[1], "home_iot") == 0)
     {
-      //printf("MY PID IS: %d\n", getpid());
-
-      logfile = fopen("log.txt", "w");
-      logging("SIMULATOR STARTING");
-      conf_Attribution(ConfName);
+      printf("MY PID IS: %d\n", getpid());
       char *ConfName;
       ConfName = (char *)malloc(100 * sizeof(char));
       ConfName = argv[2];
-      //printf("This is the system Manager!!! \n");
+      conf_Attribution(ConfName);
+      logfile = fopen("log.txt", "w");
+      printf("YUIIIII\n");
       create_Sem();
+      printf("poiss\n");
       create_shared_mem();
+      printf("shift\n");
+      logging("SIMULATOR STARTING");
+
+      printf("This is the system Manager!!! \n");
+
+
       shm->start = true;
 
       create_Threads();
-      for (int i = 0; i < shm->n_workers; i++)
+      for (int i = 0; i < confInfo->n_workers; i++)
       {
         pid = fork();
         if (pid == 0)
@@ -285,7 +315,7 @@ int main(int argc, char **argv)
           strcat(str,num);
           strcat(str," READY");
           logging(str);
-          sleep(5);
+          //sleep(5);
           //printf("%d : I'm a child/worker process with a pid of %d and my dad is %d\n", i + 1, getpid(), getppid());
           break;
         }

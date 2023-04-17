@@ -7,6 +7,16 @@
 #include <stdbool.h>
 
 
+typedef struct Sensor{
+  char id[32];
+  int interval;
+  char key[32];
+  int min;
+  int max;
+
+} sensor_t;
+
+
 typedef struct Shared {
     bool start;
     int queue_size;
@@ -14,17 +24,22 @@ typedef struct Shared {
     int max_keys;
     int max_sensors;
     int max_alerts;
+    sensor_t* sens;
 } shm_t;
 
 shm_t* shm;
 
-typedef struct Sensor{
-  char id[32];
-  int interval;
-  char key[32];
-  int min;
-  int max;
-} sensor;
+typedef struct Data{ //Struct usado para guardar as informaçoes de config.txt
+    int queue_size;
+    int n_workers;
+    int max_keys;
+    int max_sensors;
+    int max_alerts;
+
+} data_t;
+
+extern data_t* confInfo;
+
 
 char ConsoleID[32];
 
