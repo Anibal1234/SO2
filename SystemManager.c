@@ -37,6 +37,7 @@ pthread_t sensorReader;
 pthread_t consoleReader;
 struct tm *timeinfo;
 int channel[2];
+char info[bufferLength];
 
 
 void logging(char string[])
@@ -155,11 +156,15 @@ void *thread_test()
   pthread_exit(NULL);
 }
 
-void *dispacher(){
+void *dispacher_f(){
   pthread_t tid = pthread_self();
   printf("Thread %ld \n", tid);
-  open(channel[1]);
-  printf("");
+  close(channel[0]);
+  sprintf(info, "INFORMATION WRITE");
+  if(write(channel[1], info, sizeof(info)) == -1){
+    perror("ERROR WRITING IN UNNAMED PIPE!!!\n");
+  }
+  printf("INFO SENT THROUGH UNNAMED PIPE!\n");
   close(channel[1]);
 }
 
@@ -238,21 +243,18 @@ void create_shared_mem()
 
 void create_Threads()
 {
-  pthread_create(&dispacher, NULL, thread_test, NULL);
-
+  pthread_create(&dispacher, NULL, dispacher_f, NULL);
+  logging("THREAD DISPACHER CREATED");
   pthread_create(&sensorReader, NULL, thread_test, NULL);
-
+  logging("THREAD SENSOR_READER CREATED");
   pthread_create(&consoleReader, NULL, thread_test, NULL);
+  logging("THREAD CONSOLE_READER CREATED");
 
   pthread_join(dispacher, NULL);
   pthread_join(sensorReader, NULL);
   pthread_join(consoleReader, NULL);
-  logging("THREAD DISPACHER CREATED");
-  logging("THREAD SENSOR_READER CREATED");
-  logging("THREAD CONSOLE_READER CREATED");
+
 }
-
-
 
 
 
@@ -295,6 +297,7 @@ int main(int argc, char **argv)
       printf("poiss\n");
       create_shared_mem();
       printf("shift\n");
+      create_unnamed_pipes();
       logging("SIMULATOR STARTING");
 
       printf("This is the system Manager!!! \n");
@@ -308,6 +311,7 @@ int main(int argc, char **argv)
         pid = fork();
         if (pid == 0)
         {
+          //ler pipe e criar uma flag para apenas um worker ler
           char str[14];
           char num[2];
           strcpy(str, "WORKER ");
