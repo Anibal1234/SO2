@@ -37,8 +37,8 @@ pthread_t sensorReader;
 pthread_t consoleReader;
 struct tm *timeinfo;
 int channel[2];
-char info[bufferLength];
-
+char write_info[bufferLength];
+char read_info[bufferLength];
 
 void logging(char string[])
 {
@@ -158,17 +158,18 @@ void *thread_test()
 
 void *dispacher_f(){
   pthread_t tid = pthread_self();
-  printf("Thread %ld \n", tid);
-  close(channel[0]);
-  sprintf(info, "INFORMATION WRITE");
-  if(write(channel[1], info, sizeof(info)) == -1){
+  printf("Thread %ld: dispacher \n", tid);
+  //close(channel[0]);
+  sprintf(write_info, "INFORMATION WRITE");
+  if(write(channel[1], write_info, sizeof(write_info)) == -1){
     perror("ERROR WRITING IN UNNAMED PIPE!!!\n");
   }
   printf("INFO SENT THROUGH UNNAMED PIPE!\n");
   close(channel[1]);
+  return NULL;
 }
 
-void create_Sem()
+void create_Sem()//kill ipc sh na ficha de shared memory
 {
   sem_close(file_mutex);
   sem_unlink("file_write");
@@ -311,6 +312,7 @@ int main(int argc, char **argv)
         pid = fork();
         if (pid == 0)
         {
+
           //ler pipe e criar uma flag para apenas um worker ler
           char str[14];
           char num[2];
@@ -319,6 +321,10 @@ int main(int argc, char **argv)
           strcat(str,num);
           strcat(str," READY");
           logging(str);
+          close(channel[1]);
+          read(channel[0], read_info, sizeof(read_info));
+          printf("[WORKER %s] Received (%s) from master to add.\n",num,read_info);
+          close(channel[0]);
           //sleep(5);
           //printf("%d : I'm a child/worker process with a pid of %d and my dad is %d\n", i + 1, getpid(), getppid());
           break;
