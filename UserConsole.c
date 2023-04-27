@@ -18,6 +18,25 @@
 #include <errno.h>
 
 #include "structs.h"
+#define consolePipe "/tmp/CONSOLE_PIPE"
+#define bufferLength 255
+
+char write_info[bufferLength];
+
+void sendInfo(){
+  int fd;
+  if((fd = open(consolePipe,O_WRONLY))<0){
+      perror("ERROR OPENING CONSOLE PIPE FOR WRITING!!!\n");
+      exit(0);
+  }
+
+  sprintf(write_info, "INFORMATION WRITE ON CONSOLE PIPE");
+  if(write(fd, write_info, sizeof(write_info)) == -1){
+    perror("ERROR WRITING IN CONSOLE NAMED PIPE!!!\n");
+  }
+  printf("INFO WROTE IN CONSOLE NAMED PIPE!\n");
+
+}
 
 
 void console_Menu()
@@ -34,6 +53,7 @@ void console_Menu()
   else if (strcmp(choice, "stats\n") == 0)
   {
     printf("You're in stats!!!\n");
+    sendInfo();
     console_Menu();
   }
   else if (strcmp(choice, "reset\n") == 0)

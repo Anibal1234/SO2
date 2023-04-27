@@ -18,6 +18,10 @@
 #include <errno.h>
 
 #include "structs.h"
+#define sensorPipe "/tmp/SENSOR_PIPE"
+#define bufferLength 255
+
+char write_info[bufferLength];
 
 int interval_check(int min, int max){
   if(max-min>0){
@@ -48,6 +52,22 @@ int alfanum_check(char str[],int flag){
 }
 }
 
+void sendInfo(){
+  int fd;
+  printf("ENTREI!!!\n");
+  if((fd = open(sensorPipe,O_WRONLY))<0){
+      perror("ERROR OPENING SENSOR PIPE FOR WRITING!!!\n");
+      exit(0);
+  }
+  printf("ENTREI123!!!\n");
+  sprintf(write_info, "INFORMATION WROTE ON SENSOR PIPE");
+  if(write(fd, write_info, sizeof(write_info)) == -1){
+    perror("ERROR WRITING IN CONSOLE SENSOR PIPE!!!\n");
+  }
+  printf("INFO WROTE IN SENSOR NAMED PIPE!\n");
+
+}
+
 
 
 int main(int argc, char **argv)
@@ -58,7 +78,7 @@ int main(int argc, char **argv)
       {
         //printf("MY PID IS: %d\n", getpid());
         printf("This is the sensor!!! \n");
-        sensor sens;
+        sensor_t sens;
         int max = atoi(argv[6]);
         int min = atoi(argv[5]);
         if (argv[2][2] == '\0' || argv[4][2] == '\0' || alfanum_check(argv[2],1) == 0 || alfanum_check(argv[4],2) == 0 || interval_check(min,max) == 0)
@@ -72,6 +92,8 @@ int main(int argc, char **argv)
         sens.min = atoi(argv[5]);
         sens.max = atoi(argv[6]);
         printf("HERE'S THE INFO: %s, %d, %s, %d, %d\n", sens.id, sens.interval, sens.key, sens.min, sens.max);
+        sendInfo();
+        exit(0);
       }
       else
       {

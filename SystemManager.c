@@ -21,6 +21,8 @@
 
 #define bufferLength 255
 #define stringLength 200
+#define consolePipe "/tmp/CONSOLE_PIPE"
+#define sensorPipe "/tmp/SENSOR_PIPE"
 
 data_t* confInfo;
 // global variables
@@ -156,6 +158,40 @@ void *thread_test()
   pthread_exit(NULL);
 }
 
+void *sensor_reader_f(){
+  int fd;
+  pthread_t tid = pthread_self();
+  printf("Thread %ld: console reader \n", tid);
+
+  if((fd = open(sensorPipe, O_RDONLY))<0){
+    perror("ERROR OPEN SENSOR NAMED PIPE FOR READING!!!\n");
+    exit(0);
+  }
+  if(read(fd, write_info, sizeof(write_info)) == -1){
+    perror("ERROR READING IN SENSOR NAMED PIPE!!!\n");
+  }
+  printf("INFO READ FROM SENSOR NAMED PIPE : %s!\n", write_info);
+  return NULL;
+
+}
+
+void *console_reader_f(){
+  int fd;
+  pthread_t tid = pthread_self();
+  printf("Thread %ld: console reader \n", tid);
+  if((fd = open(consolePipe, O_RDONLY))<0){
+    perror("ERROR OPEN CONSOLE NAMED PIPE FOR READING!!!\n");
+    exit(0);
+  }
+  if(read(fd, write_info, sizeof(write_info)) == -1){
+    perror("ERROR READING IN CONSOLE NAMED PIPE!!!\n");
+  }
+  printf("INFO READ FROM CONSOLE NAMED PIPE : %s!\n", write_info);
+  return NULL;
+
+}
+
+
 void *dispacher_f(){
   pthread_t tid = pthread_self();
   printf("Thread %ld: dispacher \n", tid);
@@ -165,7 +201,7 @@ void *dispacher_f(){
     perror("ERROR WRITING IN UNNAMED PIPE!!!\n");
   }
   printf("INFO SENT THROUGH UNNAMED PIPE!\n");
-  close(channel[1]);
+  close(channel[1]);//por no cleanup no futuro
   return NULL;
 }
 
@@ -213,9 +249,17 @@ void access_Resources(){
 }
 
 
-void create_unnamed_pipes(){
+void create_pipes(){
   if(pipe(channel) == -1){
     perror("ERROR CREATING UNNAMED PIPE!!!!\n");
+    exit(0);
+  }
+  if(mkfifo(consolePipe,O_CREAT | O_EXCL | 0777)<0){
+    perror("ERROR CREATING CONSOLE NAMED PIPE!!!!\n");
+    exit(0);
+  }
+  if(mkfifo(sensorPipe, O_CREAT | O_EXCL | 0777) <0){
+    perror("ERROR CREATING SENSOR NAMED PIPE !!!\n");
     exit(0);
   }
 }
@@ -246,9 +290,9 @@ void create_Threads()
 {
   pthread_create(&dispacher, NULL, dispacher_f, NULL);
   logging("THREAD DISPACHER CREATED");
-  pthread_create(&sensorReader, NULL, thread_test, NULL);
+  pthread_create(&sensorReader, NULL, sensor_reader_f, NULL);
   logging("THREAD SENSOR_READER CREATED");
-  pthread_create(&consoleReader, NULL, thread_test, NULL);
+  pthread_create(&consoleReader, NULL, console_reader_f, NULL);
   logging("THREAD CONSOLE_READER CREATED");
 
   pthread_join(dispacher, NULL);
@@ -263,6 +307,8 @@ void end_it_all()
 {
   shmdt(shm);
   shmctl(shmid, IPC_RMID, NULL);
+  unlink(consolePipe);
+  unlink(sensorPipe);
   free(confInfo);
   sem_close(file_mutex);
   sem_unlink("file_write");
@@ -298,7 +344,7 @@ int main(int argc, char **argv)
       printf("poiss\n");
       create_shared_mem();
       printf("shift\n");
-      create_unnamed_pipes();
+      create_pipes();
       logging("SIMULATOR STARTING");
 
       printf("This is the system Manager!!! \n");
