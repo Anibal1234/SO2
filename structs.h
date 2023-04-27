@@ -38,6 +38,11 @@ typedef struct Data{ //Struct usado para guardar as informaçoes de config.txt
 
 } data_t;
 
+typedef struct {
+  long msgtype;
+  int temp;
+}message_queue;
+
 extern data_t* confInfo;
 
 

@@ -20,8 +20,10 @@
 #include "structs.h"
 #define consolePipe "/tmp/CONSOLE_PIPE"
 #define bufferLength 255
+#define QUEUE_KEY 123
 
 char write_info[bufferLength];
+int msqid;
 
 void sendInfo(){
   int fd;
@@ -38,6 +40,12 @@ void sendInfo(){
 
 }
 
+void create_messageQueue(){
+  if((msqid = msgget(QUEUE_KEY, IPC_CREAT | 0700)) == -1){
+    perror("ERROR ON CREATION OF MESSAGE QUEUE!!!\n");
+    exit(0);
+  }
+}
 
 void console_Menu()
 {
@@ -52,8 +60,14 @@ void console_Menu()
   }
   else if (strcmp(choice, "stats\n") == 0)
   {
-    printf("You're in stats!!!\n");
     sendInfo();
+    printf("You're in stats!!!\n");
+    message_queue msg;
+    printf("KKKKKK\n");
+    msgrcv(msqid,&msg,sizeof(msg)-sizeof(long),0,0);
+    printf("ok\n");
+    printf("I GOT THIS MESSAGE : %d \n", msg.temp);
+
     console_Menu();
   }
   else if (strcmp(choice, "reset\n") == 0)
@@ -101,6 +115,7 @@ int main(int argc, char **argv)
       //printf("This is the user console!!! \n");
       strcpy(ConsoleID, argv[2]);
       printf("Console ID: %s\n", ConsoleID);
+      create_messageQueue();
       console_Menu();
 
     }

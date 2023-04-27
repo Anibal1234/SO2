@@ -23,10 +23,11 @@
 #define stringLength 200
 #define consolePipe "/tmp/CONSOLE_PIPE"
 #define sensorPipe "/tmp/SENSOR_PIPE"
+#define QUEUE_KEY 123
 
 data_t* confInfo;
 // global variables
-int shmid;
+int shmid, msqid, int_msqid;
 FILE *conf;
 FILE *logfile;
 char buffer[bufferLength];
@@ -205,6 +206,18 @@ void *dispacher_f(){
   return NULL;
 }
 
+
+void create_Message_Queue(){
+  if((msqid = msgget(QUEUE_KEY, IPC_CREAT | 0700)) == -1){
+    perror("ERROR ON CREATION OF MESSAGE QUEUE!!!\n");
+    exit(0);
+  }
+  if((int_msqid = msgget(IPC_PRIVATE, IPC_CREAT | 0700)) == -1){
+    perror("ERROR CREATING INTERNAL QUEUE!!!\n");
+    exit(0);
+  }
+}
+
 void create_Sem()//kill ipc sh na ficha de shared memory
 {
   sem_close(file_mutex);
@@ -254,10 +267,12 @@ void create_pipes(){
     perror("ERROR CREATING UNNAMED PIPE!!!!\n");
     exit(0);
   }
+  unlink(consolePipe);
   if(mkfifo(consolePipe,O_CREAT | O_EXCL | 0777)<0){
     perror("ERROR CREATING CONSOLE NAMED PIPE!!!!\n");
     exit(0);
   }
+  unlink(sensorPipe);
   if(mkfifo(sensorPipe, O_CREAT | O_EXCL | 0777) <0){
     perror("ERROR CREATING SENSOR NAMED PIPE !!!\n");
     exit(0);
@@ -310,6 +325,8 @@ void end_it_all()
   unlink(consolePipe);
   unlink(sensorPipe);
   free(confInfo);
+  msgctl(msqid,IPC_RMID,NULL);
+  msgctl(int_msqid,IPC_RMID,NULL);
   sem_close(file_mutex);
   sem_unlink("file_write");
   fclose(logfile);
@@ -345,6 +362,7 @@ int main(int argc, char **argv)
       create_shared_mem();
       printf("shift\n");
       create_pipes();
+      create_Message_Queue();
       logging("SIMULATOR STARTING");
 
       printf("This is the system Manager!!! \n");
@@ -391,6 +409,11 @@ int main(int argc, char **argv)
         if (pid == 0)
         {
           logging("PROCESS ALERTS_WATCHER CREATED");
+          message_queue mesqueue;
+          mesqueue.msgtype = 1;
+          mesqueue.temp = 20;
+          msgsnd(msqid,&mesqueue,sizeof(mesqueue)-sizeof(long),0);
+          printf("SENT THIS INFO THROUGH MESSAGE QUEUE: %d\n",mesqueue.temp);
           //printf("I'm the alerts child process with a father with the id of %d\n", getppid());
         }
         else if (pid < 0)
