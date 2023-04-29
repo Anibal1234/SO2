@@ -172,6 +172,14 @@ void *sensor_reader_f(){
     perror("ERROR READING IN SENSOR NAMED PIPE!!!\n");
   }
   printf("INFO READ FROM SENSOR NAMED PIPE : %s!\n", write_info);
+
+  message_queue mesq;
+  mesq.msgtype = 1;
+  mesq.temp = 5 ;
+  msgsnd(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0);
+  printf("SENSOR SENT THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %d\n",mesq.temp);
+
+
   return NULL;
 
 }
@@ -188,6 +196,13 @@ void *console_reader_f(){
     perror("ERROR READING IN CONSOLE NAMED PIPE!!!\n");
   }
   printf("INFO READ FROM CONSOLE NAMED PIPE : %s!\n", write_info);
+
+  message_queue mesq;
+  mesq.msgtype = 1;
+  mesq.temp = 10;
+  msgsnd(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0);
+  printf("CONSOLE SENT THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %d\n",mesq.temp);
+
   return NULL;
 
 }
@@ -197,6 +212,13 @@ void *dispacher_f(){
   pthread_t tid = pthread_self();
   printf("Thread %ld: dispacher \n", tid);
   //close(channel[0]);
+
+  message_queue mesq;
+  msgrcv(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0,0);//checar a prioridade
+  printf("RECEIVED THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %d\n",mesq.temp);
+  msgrcv(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0,0);//checar a prioridade
+  printf("RECEIVED THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %d\n",mesq.temp);
+
   sprintf(write_info, "INFORMATION WRITE");
   if(write(channel[1], write_info, sizeof(write_info)) == -1){
     perror("ERROR WRITING IN UNNAMED PIPE!!!\n");
