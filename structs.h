@@ -6,6 +6,7 @@
 
 #include <stdbool.h>
 
+#define bufferLength 255
 
 typedef struct Sensor{
   char id[32];
@@ -17,17 +18,6 @@ typedef struct Sensor{
 } sensor_t;
 
 
-typedef struct Shared {
-    bool start;
-    int queue_size;
-    int n_workers;
-    int max_keys;
-    int max_sensors;
-    int max_alerts;
-    sensor_t* sens;
-} shm_t;
-
-shm_t* shm;
 
 typedef struct Data{ //Struct usado para guardar as informaçoes de config.txt
     int queue_size;
@@ -40,11 +30,22 @@ typedef struct Data{ //Struct usado para guardar as informaçoes de config.txt
 
 typedef struct {
   long msgtype;
-  int temp;
+  char temp[bufferLength];
 }message_queue;
 
 extern data_t* confInfo;
 
+typedef struct Shared {
+    bool start;
+    int queue_size;
+    int n_workers;
+    int max_keys;
+    int max_sensors;
+    int max_alerts;
+    sensor_t* sens;
+} shm_t;
+
+shm_t* shm;
 
 char ConsoleID[32];
 

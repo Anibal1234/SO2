@@ -175,9 +175,9 @@ void *sensor_reader_f(){
 
   message_queue mesq;
   mesq.msgtype = 1;
-  mesq.temp = 5 ;
+  strcpy(mesq.temp , write_info) ;
   msgsnd(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0);
-  printf("SENSOR SENT THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %d\n",mesq.temp);
+  printf("SENSOR SENT THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
 
 
   return NULL;
@@ -199,9 +199,9 @@ void *console_reader_f(){
 
   message_queue mesq;
   mesq.msgtype = 1;
-  mesq.temp = 10;
+  strcpy(mesq.temp, "10");
   msgsnd(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0);
-  printf("CONSOLE SENT THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %d\n",mesq.temp);
+  printf("CONSOLE SENT THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
 
   return NULL;
 
@@ -215,15 +215,16 @@ void *dispacher_f(){
 
   message_queue mesq;
   msgrcv(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0,0);//checar a prioridade
-  printf("RECEIVED THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %d\n",mesq.temp);
+  printf("RECEIVED THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
+  printf("INFO READ FROM INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
   msgrcv(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0,0);//checar a prioridade
-  printf("RECEIVED THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %d\n",mesq.temp);
+  printf("RECEIVED THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
 
-  sprintf(write_info, "INFORMATION WRITE");
+  strcpy(write_info, mesq.temp);
   if(write(channel[1], write_info, sizeof(write_info)) == -1){
     perror("ERROR WRITING IN UNNAMED PIPE!!!\n");
   }
-  printf("INFO SENT THROUGH UNNAMED PIPE!\n");
+  printf("INFO SENT THROUGH UNNAMED PIPE : %s!\n", write_info);
   close(channel[1]);//por no cleanup no futuro
   return NULL;
 }
@@ -305,7 +306,7 @@ void create_pipes(){
 void create_shared_mem()
 {
   printf("ENTREI\n");
-  shmid = shmget(1234, confInfo->max_alerts*sizeof(shm_t), IPC_CREAT | 0777);// * max alerts
+  shmid = shmget(1234, confInfo->max_alerts*sizeof(shm_t) + confInfo->max_sensors *sizeof(sensor_t), IPC_CREAT | 0777);//  ADICIONAR AS ESTRUTURAS QUE VAO ESTAR NO SHARED MEMORY
   printf("TAMBEM\n");
   if (shmid == -1)
   {
@@ -433,9 +434,9 @@ int main(int argc, char **argv)
           logging("PROCESS ALERTS_WATCHER CREATED");
           message_queue mesqueue;
           mesqueue.msgtype = 1;
-          mesqueue.temp = 20;
+          strcpy(mesqueue.temp, "20");
           msgsnd(msqid,&mesqueue,sizeof(mesqueue)-sizeof(long),0);
-          printf("SENT THIS INFO THROUGH MESSAGE QUEUE: %d\n",mesqueue.temp);
+          printf("SENT THIS INFO THROUGH MESSAGE QUEUE: %s\n",mesqueue.temp);
           //printf("I'm the alerts child process with a father with the id of %d\n", getppid());
         }
         else if (pid < 0)

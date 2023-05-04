@@ -66,7 +66,7 @@ void console_Menu()
     printf("KKKKKK\n");
     msgrcv(msqid,&msg,sizeof(msg)-sizeof(long),0,0);
     printf("ok\n");
-    printf("I GOT THIS MESSAGE : %d \n", msg.temp);
+    printf("I GOT THIS MESSAGE : %s \n", msg.temp);
 
     console_Menu();
   }
@@ -103,6 +103,14 @@ void console_Menu()
 }
 
 
+int num_check(char str[]){
+  for(int i = 0; i<strlen(str);i++){
+    if(!isdigit(str[i])){
+      return 0;//not numeric
+    }
+  }
+  return 1;//numeric
+}
 
 
 int main(int argc, char **argv)
@@ -111,17 +119,24 @@ int main(int argc, char **argv)
   {
     if (strcmp(argv[1], "user_console") == 0)
     {
+      int id =atoi(argv[2]);
+      if( num_check(argv[2]) == 1 && id > 0 ){
       //printf("MY PID IS: %d\n", getpid());
       //printf("This is the user console!!! \n");
       strcpy(ConsoleID, argv[2]);
       printf("Console ID: %s\n", ConsoleID);
       create_messageQueue();
       console_Menu();
-
+    }else{
+      printf("User Console not Correct!!!\n");
     }
+  }else{
+    printf("Invalid argument!!!\n");
+    exit(0);
+  }
   }else
   {
-    printf("Invalid Option\n");
+    printf("Invalid Number of Arguments\n");
     exit(0);
   }
 
