@@ -339,8 +339,55 @@ void create_Threads()
 
 }
 
-void addSensorInfo(char info[]){
 
+void addSensorInfo(char info[]){
+  char *id = strtok(info, "#");
+  char *key = strtok(NULL, "#");
+  char *value = strtok(NULL,"#");
+  int val = atoi(value);
+  for(int i = 0; i<confInfo->max_sensors;i++){
+    if(shm->sens[i].id){
+      if(strcmp(shm->sens[i].id,id) == 0){
+        for(int l = 0; l< confInfo->max_keys;l++){
+          if(strcmp(shm->sens->keys[l].key,key) == 0){
+            shm->sens->keys[l].lastValue = val;
+            shm->sens->keys[l].updates += 1;
+            shm->sens->keys[l].sum += val;
+            shm->sens->keys[l].mean = (shm->sens->keys[l].sum / shm->sens->keys[l].updates);
+            if(val > shm->sens->keys[l].maxValue){
+              shm->sens->keys[l].maxValue = val;
+            }
+            if(val< shm->sens->keys[l].minValue){
+              shm->sens->keys[l].minValue = val;
+            }
+            break;
+          }else if(shm->sens->keys[l].key == NULL){
+            shm->sens->keys[l].lastValue = val;
+            shm->sens->keys[l].updates = 1;
+            shm->sens->keys[l].sum = val;
+            shm->sens->keys[l].mean = (shm->sens->keys[l].sum / shm->sens->keys[l].updates);
+            shm->sens->keys[l].maxValue = val;
+            shm->sens->keys[l].minValue = val;
+            break;
+          }
+          if(l == confInfo->max_keys){
+            printf("NUMERO MAXIMO DE KEYS ATINGIDO!!!!\n");//falta aqui cenas, temos de ver como fazemos com que o processo acabe
+          }
+        }
+      }
+    }else if(shm->sens[i].id == NULL){
+      strcpy(shm->sens->id, id );
+      shm->sens->keys[0].lastValue = val;
+      shm->sens->keys[0].updates = 1;
+      shm->sens->keys[0].sum = val;
+      shm->sens->keys[0].mean = (shm->sens->keys[0].sum / shm->sens->keys[0].updates);
+      shm->sens->keys[0].maxValue = val;
+      shm->sens->keys[0].minValue = val;
+      break;
+  } if( i == confInfo->max_sensors){
+    printf("NUMERO MAXIMO DE SENSORS ATINGIDO!!!!\n");//mesma merda que em cima
+  }
+}
 }
 
 void end_it_all()
@@ -415,6 +462,7 @@ int main(int argc, char **argv)
             close(channel[1]);
             read(channel[0], read_info, sizeof(read_info));
             printf("[WORKER %s] Received (%s) from master to add.\n",num,read_info);//condicoes para em caso de ser leitura de console ou de sensor
+            addSensorInfo(read_info);
           }
           state = 0;
           close(channel[0]);

@@ -75,11 +75,13 @@ void sendInfo(){
   int value;
   char info[bufferLength];
   char num[4];
-  value = generateValue(sens.keys->min,sens.keys->max);
+  printf("ANTES\n");
+  value = generateValue(key.min,key.max);
+  printf("Depois\n");
   sprintf(num, "%d", value);
   strcpy(info,sens.id);
   strcat(info,"#");
-  strcat(info,sens.keys->key);
+  strcat(info,key.key);
   strcat(info,"#");
   strcat(info,num);
   strcpy(write_info, info);
@@ -110,12 +112,17 @@ int main(int argc, char **argv)
           exit(0);
         }
         strcpy(sens.id, argv[2]);
+        printf("HAHAHA\n");
         sens.interval = atoi(argv[3]);
+        printf("HAHAHA123\n");
         strcpy(key.key, argv[4]);
+        printf("HAHAHA456\n");
         key.min = atoi(argv[5]);
+        printf("HAHAHA789\n");
         key.max = atoi(argv[6]);
         printf("HERE'S THE INFO: %s, %d, %s, %d, %d\n", sens.id, sens.interval, key.key, key.min, key.max);
         openpipe();
+        printf("BUCKLE MY SHOE!!!!\n");
         sendInfo();
         close(fd);
         exit(0);
