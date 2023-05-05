@@ -23,6 +23,8 @@
 
 char write_info[bufferLength];
 sensor_t sens;
+keys_t key;
+//sens.keys = malloc(sizeof(keys_t));
 int fd;
 
 int interval_check(int min, int max){
@@ -73,11 +75,11 @@ void sendInfo(){
   int value;
   char info[bufferLength];
   char num[4];
-  value = generateValue(sens.min,sens.max);
+  value = generateValue(sens.keys->min,sens.keys->max);
   sprintf(num, "%d", value);
   strcpy(info,sens.id);
   strcat(info,"#");
-  strcat(info,sens.key);
+  strcat(info,sens.keys->key);
   strcat(info,"#");
   strcat(info,num);
   strcpy(write_info, info);
@@ -101,6 +103,7 @@ int main(int argc, char **argv)
 
         int max = atoi(argv[6]);
         int min = atoi(argv[5]);
+        printf("GUILLOS\n");
         if (argv[2][2] == '\0' || argv[4][2] == '\0' || alfanum_check(argv[2],1) == 0 || alfanum_check(argv[4],2) == 0 || interval_check(min,max) == 0)
         {
           perror("COMMAND ARGUMENTS WRONG!!!\n");
@@ -108,10 +111,10 @@ int main(int argc, char **argv)
         }
         strcpy(sens.id, argv[2]);
         sens.interval = atoi(argv[3]);
-        strcpy(sens.key, argv[4]);
-        sens.min = atoi(argv[5]);
-        sens.max = atoi(argv[6]);
-        printf("HERE'S THE INFO: %s, %d, %s, %d, %d\n", sens.id, sens.interval, sens.key, sens.min, sens.max);
+        strcpy(key.key, argv[4]);
+        key.min = atoi(argv[5]);
+        key.max = atoi(argv[6]);
+        printf("HERE'S THE INFO: %s, %d, %s, %d, %d\n", sens.id, sens.interval, key.key, key.min, key.max);
         openpipe();
         sendInfo();
         close(fd);

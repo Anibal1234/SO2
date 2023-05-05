@@ -176,7 +176,7 @@ void *sensor_reader_f(){
   message_queue mesq;
   mesq.msgtype = 1;
   strcpy(mesq.temp , write_info) ;
-  msgsnd(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0);
+  msgsnd(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0);// mandar um estrutura com a mensagem e de quem veio, aqui e no console reader
   printf("SENSOR SENT THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
 
 
@@ -306,7 +306,7 @@ void create_pipes(){
 void create_shared_mem()
 {
   printf("ENTREI\n");
-  shmid = shmget(1234, confInfo->max_alerts*sizeof(shm_t) + confInfo->max_sensors *sizeof(sensor_t), IPC_CREAT | 0777);//  ADICIONAR AS ESTRUTURAS QUE VAO ESTAR NO SHARED MEMORY
+  shmid = shmget(1234, confInfo->max_alerts*sizeof(shm_t) + confInfo->max_sensors *sizeof(sensor_t) + confInfo->max_keys *sizeof(key_t), IPC_CREAT | 0777);//  ADICIONAR AS ESTRUTURAS QUE VAO ESTAR NO SHARED MEMORY
   printf("TAMBEM\n");
   if (shmid == -1)
   {
@@ -339,7 +339,9 @@ void create_Threads()
 
 }
 
+void addSensorInfo(char info[]){
 
+}
 
 void end_it_all()
 {
@@ -399,7 +401,7 @@ int main(int argc, char **argv)
         pid = fork();
         if (pid == 0)
         {
-
+          int state = 0;
           //ler pipe e criar uma flag para apenas um worker ler
           char str[14];
           char num[2];
@@ -408,9 +410,13 @@ int main(int argc, char **argv)
           strcat(str,num);
           strcat(str," READY");
           logging(str);
-          close(channel[1]);
-          read(channel[0], read_info, sizeof(read_info));
-          printf("[WORKER %s] Received (%s) from master to add.\n",num,read_info);
+          if(state == 0){
+            state = 1;
+            close(channel[1]);
+            read(channel[0], read_info, sizeof(read_info));
+            printf("[WORKER %s] Received (%s) from master to add.\n",num,read_info);//condicoes para em caso de ser leitura de console ou de sensor
+          }
+          state = 0;
           close(channel[0]);
           //sleep(5);
           //printf("%d : I'm a child/worker process with a pid of %d and my dad is %d\n", i + 1, getpid(), getppid());

@@ -8,16 +8,30 @@
 
 #define bufferLength 255
 
-typedef struct Sensor{
-  char id[32];
-  int interval;
+
+typedef struct key{
   char key[32];
   int min;
   int max;
+  int lastValue;
+  int minValue;
+  int maxValue;
+  int mean;//provavelmente sera necessario uma forma de guardar os valores, maybe um atribute que os vai mantendo somados
+  int updates;
+}keys_t;
+
+
+typedef struct Sensor{
+  int interval;
+  char id[32];
+  keys_t* keys;
 
 } sensor_t;
 
 
+typedef struct Worker{
+    int state;
+} worket_t;
 
 typedef struct Data{ //Struct usado para guardar as informaçoes de config.txt
     int queue_size;
