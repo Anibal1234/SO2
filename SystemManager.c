@@ -174,7 +174,7 @@ void *sensor_reader_f(){
   printf("INFO READ FROM SENSOR NAMED PIPE : %s!\n", write_info);
 
   message_queue mesq;
-  mesq.msgtype = 1;
+  mesq.msgtype = 2;
   strcpy(mesq.temp , write_info) ;
   msgsnd(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0);// mandar um estrutura com a mensagem e de quem veio, aqui e no console reader
   printf("SENSOR SENT THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
@@ -214,11 +214,11 @@ void *dispacher_f(){
   //close(channel[0]);
 
   message_queue mesq;
-  msgrcv(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0,0);//checar a prioridade
+  msgrcv(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0,2);//checar a prioridade
   printf("RECEIVED THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
   printf("INFO READ FROM INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
-  msgrcv(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0,0);//checar a prioridade
-  printf("RECEIVED THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
+  //msgrcv(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0,0);//checar a prioridade
+  //printf("RECEIVED THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
 
   strcpy(write_info, mesq.temp);
   if(write(channel[1], write_info, sizeof(write_info)) == -1){
@@ -306,7 +306,7 @@ void create_pipes(){
 void create_shared_mem()
 {
   printf("ENTREI\n");
-  shmid = shmget(1234, confInfo->max_alerts*sizeof(shm_t) + confInfo->max_sensors *sizeof(sensor_t) + confInfo->max_keys *sizeof(key_t), IPC_CREAT | 0777);//  ADICIONAR AS ESTRUTURAS QUE VAO ESTAR NO SHARED MEMORY
+  shmid = shmget(1234, confInfo->max_alerts*sizeof(shm_t) + confInfo->max_sensors * sizeof(sensor_t) + confInfo->max_keys *sizeof(key_t), IPC_CREAT | 0777);//  ADICIONAR AS ESTRUTURAS QUE VAO ESTAR NO SHARED MEMORY
   printf("TAMBEM\n");
   if (shmid == -1)
   {
@@ -341,27 +341,38 @@ void create_Threads()
 
 
 void addSensorInfo(char info[]){
+  printf(" ENTREI ADDSENSORINFO!!\n");
   char *id = strtok(info, "#");
   char *key = strtok(NULL, "#");
   char *value = strtok(NULL,"#");
   int val = atoi(value);
   for(int i = 0; i<confInfo->max_sensors;i++){
-    if(shm->sens[i].id){
+    printf("NO MAX SENSORS %d \n", i);
+    printf("shm->sens[%d].id = '%s'\n", i, shm->sens[i].id);
+    if(shm->sens[i].id && shm->sens[i].id[0] != '\0'){
+      printf("yeet\n ");
+      printf("UNO \n");
       if(strcmp(shm->sens[i].id,id) == 0){
+        printf("DOS \n");
         for(int l = 0; l< confInfo->max_keys;l++){
+          printf("NO MAX KEYS %d \n", l);
           if(strcmp(shm->sens->keys[l].key,key) == 0){
+            printf("TRES \n");
             shm->sens->keys[l].lastValue = val;
             shm->sens->keys[l].updates += 1;
             shm->sens->keys[l].sum += val;
             shm->sens->keys[l].mean = (shm->sens->keys[l].sum / shm->sens->keys[l].updates);
             if(val > shm->sens->keys[l].maxValue){
+              printf("QUATRO\n");
               shm->sens->keys[l].maxValue = val;
             }
             if(val< shm->sens->keys[l].minValue){
+              printf("cinco\n");
               shm->sens->keys[l].minValue = val;
             }
             break;
           }else if(shm->sens->keys[l].key == NULL){
+            printf("SEXTO\n");
             shm->sens->keys[l].lastValue = val;
             shm->sens->keys[l].updates = 1;
             shm->sens->keys[l].sum = val;
@@ -375,7 +386,9 @@ void addSensorInfo(char info[]){
           }
         }
       }
-    }else if(shm->sens[i].id == NULL){
+      printf("KJKJKJKJKJK\n");
+    }else if(shm->sens[i].id ){
+      printf("SETE\n");
       strcpy(shm->sens->id, id );
       shm->sens->keys[0].lastValue = val;
       shm->sens->keys[0].updates = 1;
@@ -387,7 +400,9 @@ void addSensorInfo(char info[]){
   } if( i == confInfo->max_sensors){
     printf("NUMERO MAXIMO DE SENSORS ATINGIDO!!!!\n");//mesma merda que em cima
   }
+  printf("NICE \n");
 }
+printf("WELELELELELELEL\n");
 }
 
 void end_it_all()
@@ -462,7 +477,19 @@ int main(int argc, char **argv)
             close(channel[1]);
             read(channel[0], read_info, sizeof(read_info));
             printf("[WORKER %s] Received (%s) from master to add.\n",num,read_info);//condicoes para em caso de ser leitura de console ou de sensor
+            printf(" POIS YHA MAN !!!\n");
             addSensorInfo(read_info);
+            printf(" GUILHERME JUNQUEIRA !!!!\n");
+            for(int i =0; i< confInfo->max_keys;i++){
+              if(shm->sens[0].keys[i].key){
+                printf("ITERAÇAO %d\n",i);
+                printf("INFORMATION IN KEYS :%s ; %d; %d; %d; %d; %d; %d; %d; %d;", shm->sens[0].keys[i].key,shm->sens[0].keys[i].min,shm->sens[0].keys[i].max,shm->sens[0].keys[i].lastValue,shm->sens[0].keys[i].minValue,shm->sens[0].keys[i].maxValue,shm->sens[0].keys[i].mean,shm->sens[0].keys[i].updates,shm->sens[0].keys[i].sum);
+              }else{
+                printf("DEU BREAK\n");
+                break;
+              }
+
+            }
           }
           state = 0;
           close(channel[0]);
