@@ -94,7 +94,8 @@ void sendInfo(){
 
 
 
-int main(int argc, char **argv)
+int main(int argc, char **argv)// variavel para o dispacher saber quando tem informaão para ler; e mutex/semeforo na internal queue para nao escreverem e ler ao mesmo tempo
+
 {
     if (argc == 7)
     {

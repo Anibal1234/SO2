@@ -11,8 +11,8 @@
 
 typedef struct key{
   char key[32];
-  int min;
-  int max;
+  int min;// para o sensor
+  int max;// para o sensor
   int lastValue;
   int minValue;
   int maxValue;
@@ -25,7 +25,6 @@ typedef struct key{
 typedef struct Sensor{
   int interval;
   char id[32];
-  keys_t* keys;
 
 } sensor_t;
 
@@ -57,7 +56,9 @@ typedef struct Shared {
     int max_keys;
     int max_sensors;
     int max_alerts;
+    int workers;
     sensor_t* sens;
+    keys_t *keys;
 } shm_t;
 
 shm_t* shm;

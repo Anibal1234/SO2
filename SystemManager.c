@@ -39,7 +39,7 @@ pthread_t dispacher;
 pthread_t sensorReader;
 pthread_t consoleReader;
 struct tm *timeinfo;
-int channel[2];
+int *channel;//matriz de workers, unnamed pipe por worker, criar no for de criaão dos workers
 char write_info[bufferLength];
 char read_info[bufferLength];
 
@@ -146,7 +146,7 @@ void conf_Attribution(char StringName[])
     }
   }
   fclose(conf);
-  printf("BISH\n");
+  printf("ACDC\n");
   printf("Conf info: %d, %d, %d, %d, %d \n",confInfo->queue_size,confInfo->n_workers,confInfo->max_keys,confInfo->max_sensors,confInfo->max_alerts);
 }
 
@@ -210,6 +210,7 @@ void *console_reader_f(){
 
 void *dispacher_f(){
   pthread_t tid = pthread_self();
+  int work = -1;
   printf("Thread %ld: dispacher \n", tid);
   //close(channel[0]);
 
@@ -221,11 +222,18 @@ void *dispacher_f(){
   //printf("RECEIVED THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
 
   strcpy(write_info, mesq.temp);
-  if(write(channel[1], write_info, sizeof(write_info)) == -1){
+  for(int k = 0;k<confInfo->n_workers;k++){//o que fazer se todos os workers estiverem ocupados
+      if(shm->workers[k] == 0){
+        work = k;
+        break;
+      }
+  }
+
+  if(write(channel[work][1], write_info, sizeof(write_info)) == -1){
     perror("ERROR WRITING IN UNNAMED PIPE!!!\n");
   }
   printf("INFO SENT THROUGH UNNAMED PIPE : %s!\n", write_info);
-  close(channel[1]);//por no cleanup no futuro
+  close(channel[work][1]);//por no cleanup no futuro
   return NULL;
 }
 
@@ -285,11 +293,14 @@ void access_Resources(){
 }
 
 
-void create_pipes(){
-  if(pipe(channel) == -1){
-    perror("ERROR CREATING UNNAMED PIPE!!!!\n");
+void create_unnamed_pipes(int i){
+  if(pipe(channel[i]) == -1){
+    perror("ERROR CREATING UNNAMED PIPE %d!!!!\n",i);
     exit(0);
   }
+}
+
+void create_pipes(){
   unlink(consolePipe);
   if(mkfifo(consolePipe,O_CREAT | O_EXCL | 0777)<0){
     perror("ERROR CREATING CONSOLE NAMED PIPE!!!!\n");
@@ -306,7 +317,7 @@ void create_pipes(){
 void create_shared_mem()
 {
   printf("ENTREI\n");
-  shmid = shmget(1234, confInfo->max_alerts*sizeof(shm_t) + confInfo->max_sensors * sizeof(sensor_t) + confInfo->max_keys *sizeof(key_t), IPC_CREAT | 0777);//  ADICIONAR AS ESTRUTURAS QUE VAO ESTAR NO SHARED MEMORY
+  shmid = shmget(1234, sizeof(shm_t) + confInfo->n_workers * sizeof(int) + confInfo->max_sensors * sizeof(sensor_t) + confInfo->max_keys *sizeof(key_t), IPC_CREAT | 0777);//  ADICIONAR AS ESTRUTURAS QUE VAO ESTAR NO SHARED MEMORY
   printf("TAMBEM\n");
   if (shmid == -1)
   {
@@ -320,7 +331,9 @@ void create_shared_mem()
     perror("FAILED ATTACHING SHARED MEMORY!");
     exit(0);
   }
-
+  shm->workers = (int*)( ((*void)shm) + sizeof(shm_t));
+  shm->sens = (sensor_t*)(((void*)shm->workers) + sizeof(int) * confInfo->n_workers);
+  shm->keys = (keys_t*)(((void*)shm->sens) + sizeof(sensor_t) * confInfo->max_sensors);
   logging("SHARED MEMORY CREATED AND ATTACHED!");
 }
 
@@ -339,69 +352,63 @@ void create_Threads()
 
 }
 
-
 void addSensorInfo(char info[]){
   printf(" ENTREI ADDSENSORINFO!!\n");
   char *id = strtok(info, "#");
   char *key = strtok(NULL, "#");
   char *value = strtok(NULL,"#");
   int val = atoi(value);
+
   for(int i = 0; i<confInfo->max_sensors;i++){
     printf("NO MAX SENSORS %d \n", i);
-    printf("shm->sens[%d].id = '%s'\n", i, shm->sens[i].id);
-    if(shm->sens[i].id && shm->sens[i].id[0] != '\0'){
-      printf("yeet\n ");
-      printf("UNO \n");
-      if(strcmp(shm->sens[i].id,id) == 0){
-        printf("DOS \n");
-        for(int l = 0; l< confInfo->max_keys;l++){
-          printf("NO MAX KEYS %d \n", l);
-          if(strcmp(shm->sens->keys[l].key,key) == 0){
-            printf("TRES \n");
-            shm->sens->keys[l].lastValue = val;
-            shm->sens->keys[l].updates += 1;
-            shm->sens->keys[l].sum += val;
-            shm->sens->keys[l].mean = (shm->sens->keys[l].sum / shm->sens->keys[l].updates);
-            if(val > shm->sens->keys[l].maxValue){
-              printf("QUATRO\n");
-              shm->sens->keys[l].maxValue = val;
-            }
-            if(val< shm->sens->keys[l].minValue){
-              printf("cinco\n");
-              shm->sens->keys[l].minValue = val;
-            }
-            break;
-          }else if(shm->sens->keys[l].key == NULL){
-            printf("SEXTO\n");
-            shm->sens->keys[l].lastValue = val;
-            shm->sens->keys[l].updates = 1;
-            shm->sens->keys[l].sum = val;
-            shm->sens->keys[l].mean = (shm->sens->keys[l].sum / shm->sens->keys[l].updates);
-            shm->sens->keys[l].maxValue = val;
-            shm->sens->keys[l].minValue = val;
-            break;
-          }
-          if(l == confInfo->max_keys){
-            printf("NUMERO MAXIMO DE KEYS ATINGIDO!!!!\n");//falta aqui cenas, temos de ver como fazemos com que o processo acabe
-          }
-        }
-      }
-      printf("KJKJKJKJKJK\n");
-    }else if(shm->sens[i].id ){
-      printf("SETE\n");
-      strcpy(shm->sens->id, id );
-      shm->sens->keys[0].lastValue = val;
-      shm->sens->keys[0].updates = 1;
-      shm->sens->keys[0].sum = val;
-      shm->sens->keys[0].mean = (shm->sens->keys[0].sum / shm->sens->keys[0].updates);
-      shm->sens->keys[0].maxValue = val;
-      shm->sens->keys[0].minValue = val;
+    if( i == (confInfo->max_sensors - 1) && shm->sens[i].id[0] != '\0'){
+      printf("NUMERO MAXIMO DE SENSORS ATINGIDO!!!!\n");//mesma merda que em baixo
       break;
-  } if( i == confInfo->max_sensors){
-    printf("NUMERO MAXIMO DE SENSORS ATINGIDO!!!!\n");//mesma merda que em cima
+    }else if(shm->sens[i].id && shm->sens[i].id[0] == '\0'){
+        printf("SETE  %d\n",shm->sens[i].id[0]);
+        strcpy(shm->sens->id, id );
+        printf("SENSOR INFO :%s",shm->sens[i].id);
+        break;
+    }
   }
-  printf("NICE \n");
-}
+    for(int l = 0; l< confInfo->max_keys;l++){
+      printf("NO MAX KEYS %d \n", l);
+      if(l == (confInfo->max_keys-1) && strcmp(shm->keys[l].key,key) != 0){
+        printf("NUMERO MAXIMO DE KEYS ATINGIDO!!!!\n");//falta aqui cenas, temos de ver como fazemos com que o processo acabe
+        break;
+      }
+      if(strcmp(shm->keys[l].key,key) == 0){
+        printf("TRES \n");
+        shm->keys[l].lastValue = val;
+        shm->keys[l].updates += 1;
+        shm->keys[l].sum += val;
+        shm->keys[l].mean = (shm->keys[l].sum / shm->keys[l].updates);
+        if(val > shm->keys[l].maxValue){
+          printf("QUATRO\n");
+          shm->keys[l].maxValue = val;
+        }
+        if(val< shm->keys[l].minValue){
+          printf("cinco\n");
+          shm->keys[l].minValue = val;
+        }
+        break;
+      }else if(shm->keys[l].key && shm->keys[l].key[0] == '\0'){
+        printf("SEXTO\n");
+        strcpy(shm->keys[l].key, key );
+        shm->keys[l].lastValue = val;
+        shm->keys[l].updates = 1;
+        shm->keys[l].sum = val;
+        shm->keys[l].mean = (shm->keys[l].sum / shm->keys[l].updates);
+        shm->keys[l].maxValue = val;
+        shm->keys[l].minValue = val;
+        printf("INFORMATION IN KEYS :%s ; %d; %d; %d; %d; %d; %d; %d; %d;", shm->keys[l].key,shm->keys[l].minValue,shm->keys[l].maxValue,shm->keys[l].lastValue,shm->keys[l].minValue,shm->keys[l].maxValue,shm->keys[l].mean,shm->keys[l].updates,shm->keys[l].sum);
+        break;
+      }
+
+    }
+
+      printf("KJKJKJKJKJK\n");
+
 printf("WELELELELELELEL\n");
 }
 
@@ -411,6 +418,10 @@ void end_it_all()
   shmctl(shmid, IPC_RMID, NULL);
   unlink(consolePipe);
   unlink(sensorPipe);
+  for (int i = 0; i < confInfo; i++) {
+    free(channel[i]);
+  }
+  free(channel);
   free(confInfo);
   msgctl(msqid,IPC_RMID,NULL);
   msgctl(int_msqid,IPC_RMID,NULL);
@@ -430,7 +441,7 @@ void wait_for_childs()
   }
 }
 
-int main(int argc, char **argv)
+int main(int argc, char **argv)// variavel para o dispacher saber quando tem informaão para ler; e mutex/semeforo na internal queue para nao escreverem e ler ao mesmo tempo
 {
 
   if (argc == 3)
@@ -442,6 +453,12 @@ int main(int argc, char **argv)
       ConfName = (char *)malloc(100 * sizeof(char));
       ConfName = argv[2];
       conf_Attribution(ConfName);
+      channel = malloc(confInfo->n_workers * sizeof(int*));
+      for(int i = 0; i<confInfo->n_workers; i++){
+        channel[i] = malloc(2 * sizeof(int));
+      }
+
+
       logfile = fopen("log.txt", "w");
       printf("YUIIIII\n");
       create_Sem();
@@ -463,7 +480,6 @@ int main(int argc, char **argv)
         pid = fork();
         if (pid == 0)
         {
-          int state = 0;
           //ler pipe e criar uma flag para apenas um worker ler
           char str[14];
           char num[2];
@@ -471,28 +487,30 @@ int main(int argc, char **argv)
           sprintf(num,"%d",i+1);
           strcat(str,num);
           strcat(str," READY");
+          shm->worker[i] = 0
+          create_unnamed_pipes(i);
           logging(str);
-          if(state == 0){
-            state = 1;
-            close(channel[1]);
-            read(channel[0], read_info, sizeof(read_info));
+          if(shm->worker[i] == 0){//passar para o shared memory, array ou struct de workers para o dispacher saber a quem mandar
+            shm->worker[i] = 1;
+            close(channel[i][1]);
+            read(channel[i][0], read_info, sizeof(read_info));
             printf("[WORKER %s] Received (%s) from master to add.\n",num,read_info);//condicoes para em caso de ser leitura de console ou de sensor
             printf(" POIS YHA MAN !!!\n");
             addSensorInfo(read_info);
             printf(" GUILHERME JUNQUEIRA !!!!\n");
-            for(int i =0; i< confInfo->max_keys;i++){
-              if(shm->sens[0].keys[i].key){
+            /*for(int i =0; i< confInfo->max_keys;i++){
+              if(shm->keys[i].key){
                 printf("ITERAÇAO %d\n",i);
-                printf("INFORMATION IN KEYS :%s ; %d; %d; %d; %d; %d; %d; %d; %d;", shm->sens[0].keys[i].key,shm->sens[0].keys[i].min,shm->sens[0].keys[i].max,shm->sens[0].keys[i].lastValue,shm->sens[0].keys[i].minValue,shm->sens[0].keys[i].maxValue,shm->sens[0].keys[i].mean,shm->sens[0].keys[i].updates,shm->sens[0].keys[i].sum);
+                printf("INFORMATION IN KEYS :%s ; %d; %d; %d; %d; %d; %d; %d; %d;", shm->keys[i].key,shm->keys[i].min,shm->keys[i].max,shm->keys[i].lastValue,shm->keys[i].minValue,shm->keys[i].maxValue,shm->keys[i].mean,shm->keys[i].updates,shm->keys[i].sum);
               }else{
                 printf("DEU BREAK\n");
                 break;
               }
 
-            }
+            }*/
           }
-          state = 0;
-          close(channel[0]);
+          shm->worker[i] = 0;
+          close(channel[i][0]);
           //sleep(5);
           //printf("%d : I'm a child/worker process with a pid of %d and my dad is %d\n", i + 1, getpid(), getppid());
           break;
