@@ -25,18 +25,18 @@
 char write_info[bufferLength];
 int msqid;
 
-void sendInfo(){
+void sendInfo(char info[]){
   int fd;
   if((fd = open(consolePipe,O_WRONLY))<0){
       perror("ERROR OPENING CONSOLE PIPE FOR WRITING!!!\n");
       exit(0);
   }
 
-  sprintf(write_info, "INFORMATION WRITE ON CONSOLE PIPE");
+  strcpy(write_info, info);
   if(write(fd, write_info, sizeof(write_info)) == -1){
     perror("ERROR WRITING IN CONSOLE NAMED PIPE!!!\n");
   }
-  printf("INFO WROTE IN CONSOLE NAMED PIPE!\n");
+  printf("INFO WROTE IN CONSOLE NAMED PIPE : %s!\n",write_info);
 
 }
 
@@ -60,13 +60,13 @@ void console_Menu()
   }
   else if (strcmp(choice, "stats\n") == 0)
   {
-    sendInfo();
+    sendInfo("stats");
     printf("You're in stats!!!\n");
     message_queue msg;
     printf("KKKKKK\n");
     msgrcv(msqid,&msg,sizeof(msg)-sizeof(long),0,0);
     printf("ok\n");
-    printf("I GOT THIS MESSAGE : %s \n", msg.temp);
+    printf("%s\n", msg.temp);
 
     console_Menu();
   }

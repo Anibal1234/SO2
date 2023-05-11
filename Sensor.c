@@ -88,7 +88,7 @@ void sendInfo(){
   if(write(fd, write_info, sizeof(write_info)) == -1){
     perror("ERROR WRITING IN CONSOLE SENSOR PIPE!!!\n");
   }
-  printf("INFO WROTE IN SENSOR NAMED PIPE ; %s \n",info);
+  printf("INFO WROTE IN SENSOR NAMED PIPE ; %s \n",write_info);
 
 }
 
@@ -124,7 +124,10 @@ int main(int argc, char **argv)// variavel para o dispacher saber quando tem inf
         printf("HERE'S THE INFO: %s, %d, %s, %d, %d\n", sens.id, sens.interval, key.key, key.min, key.max);
         openpipe();
         printf("BUCKLE MY SHOE!!!!\n");
+        while(true){
         sendInfo();
+        sleep(sens.interval);
+      }
         close(fd);
         exit(0);
       }

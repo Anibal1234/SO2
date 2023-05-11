@@ -7,10 +7,16 @@
 #include <stdbool.h>
 
 #define bufferLength 255
+#define messageLength 1024
+
+typedef struct intData{
+  char message[bufferLength];
+  int type;
+}internal_queue;
 
 
 typedef struct key{
-  char key[32];
+  char key[33];
   int min;// para o sensor
   int max;// para o sensor
   int lastValue;
@@ -24,7 +30,7 @@ typedef struct key{
 
 typedef struct Sensor{
   int interval;
-  char id[32];
+  char id[33];
 
 } sensor_t;
 
@@ -44,7 +50,7 @@ typedef struct Data{ //Struct usado para guardar as informaçoes de config.txt
 
 typedef struct {
   long msgtype;
-  char temp[bufferLength];
+  char temp[messageLength];
 }message_queue;
 
 extern data_t* confInfo;
@@ -56,14 +62,16 @@ typedef struct Shared {
     int max_keys;
     int max_sensors;
     int max_alerts;
-    int workers;
+    int *workers;
     sensor_t* sens;
     keys_t *keys;
 } shm_t;
 
 shm_t* shm;
 
-char ConsoleID[32];
+internal_queue* int_queue;
+
+char ConsoleID[33];
 
 
 #endif //UNTITLED1_STRUCTS_H

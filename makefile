@@ -1,5 +1,5 @@
 all:
-	gcc -Wall -pthread SystemManager.c structs.h -o system_manager
+	gcc -Wall -pthread -g SystemManager.c structs.h -o system_manager
 	gcc -Wall -pthread UserConsole.c structs.h -o console
 	gcc -Wall -pthread Sensor.c structs.h -o sensor
 

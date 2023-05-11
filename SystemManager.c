@@ -33,15 +33,22 @@ FILE *logfile;
 char buffer[bufferLength];
 char logger[stringLength];
 sem_t *file_mutex;
+sem_t *internal_queue_write;
+sem_t *internal_queue_read;
+sem_t *worker_sem;
 int conf_counter = 0;
 pid_t pid;
 pthread_t dispacher;
 pthread_t sensorReader;
 pthread_t consoleReader;
 struct tm *timeinfo;
-int *channel;//matriz de workers, unnamed pipe por worker, criar no for de criaão dos workers
+int **channel;//matriz de workers, unnamed pipe por worker, criar no for de criaão dos workers
 char write_info[bufferLength];
 char read_info[bufferLength];
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond_full = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t mutex_full = PTHREAD_MUTEX_INITIALIZER;
 
 void logging(char string[])
 {
@@ -150,17 +157,23 @@ void conf_Attribution(char StringName[])
   printf("Conf info: %d, %d, %d, %d, %d \n",confInfo->queue_size,confInfo->n_workers,confInfo->max_keys,confInfo->max_sensors,confInfo->max_alerts);
 }
 
-void *thread_test()
-{
-
-  pthread_t tid = pthread_self();
-  printf("Thread %ld \n", tid);
-  sleep(3);
-  pthread_exit(NULL);
+bool queue_full(){
+  int cont = 0;
+  for(int k = 0;k<confInfo->queue_size;k++){
+    if(int_queue[k].message[0] != '\0'){
+      cont++;
+    }
+  }
+  if(cont == confInfo->queue_size){
+    return true;
+  }else{
+    return false;
+  }
 }
 
 void *sensor_reader_f(){
   int fd;
+  internal_queue aux;
   pthread_t tid = pthread_self();
   printf("Thread %ld: console reader \n", tid);
 
@@ -168,74 +181,172 @@ void *sensor_reader_f(){
     perror("ERROR OPEN SENSOR NAMED PIPE FOR READING!!!\n");
     exit(0);
   }
+
+  bool test = true;
+  while(test == true){
   if(read(fd, write_info, sizeof(write_info)) == -1){
     perror("ERROR READING IN SENSOR NAMED PIPE!!!\n");
   }
   printf("INFO READ FROM SENSOR NAMED PIPE : %s!\n", write_info);
 
-  message_queue mesq;
+  strcpy(aux.message,write_info);
+  aux.type = 2;
+  //sem_wait(internal_queue_write);
+  for(int i = 0; i<confInfo->queue_size;i++){
+    if(int_queue[i].message[0] == '\0'){
+      pthread_mutex_lock(&mutex);
+      int_queue[i] = aux;
+      printf("SENSOR SENT THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",int_queue[i].message);
+      pthread_cond_signal(&cond);
+      pthread_mutex_unlock(&mutex);
+      break;
+    }else if(i == confInfo->queue_size -1 && int_queue[i].message[0] != '\0'){
+      printf("IGNORAR ESTE SENSOR VALUE!!!\n");//fazer semaforo ou variavel como no outro caso.
+    }
+  }
+  //sem_post(internal_queue_write);
+
+  /*message_queue mesq;
   mesq.msgtype = 2;
   strcpy(mesq.temp , write_info) ;
   msgsnd(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0);// mandar um estrutura com a mensagem e de quem veio, aqui e no console reader
   printf("SENSOR SENT THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
-
-
+*/
+  //test = false;
+  }
   return NULL;
 
 }
 
 void *console_reader_f(){
   int fd;
+  internal_queue aux;
   pthread_t tid = pthread_self();
   printf("Thread %ld: console reader \n", tid);
   if((fd = open(consolePipe, O_RDONLY))<0){
     perror("ERROR OPEN CONSOLE NAMED PIPE FOR READING!!!\n");
     exit(0);
   }
+
+  bool test = true;
+  while(test == true){
   if(read(fd, write_info, sizeof(write_info)) == -1){
     perror("ERROR READING IN CONSOLE NAMED PIPE!!!\n");
   }
   printf("INFO READ FROM CONSOLE NAMED PIPE : %s!\n", write_info);
+  strcpy(aux.message,write_info);
+  aux.type = 1;//prioridade de console
 
-  message_queue mesq;
+  //sem_wait(internal_queue_write);
+  for(int i = 0; i<confInfo->queue_size;i++){
+    if(int_queue[i].message[0] == '\0'){
+      pthread_mutex_lock(&mutex);
+      int_queue[i] = aux;
+      printf("CONSOLE SENT THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",int_queue[i].message);
+      pthread_cond_signal(&cond);
+      pthread_mutex_unlock(&mutex);
+      break;
+    }else if(i == confInfo->queue_size -1 && int_queue[i].message[0] != '\0'){
+      pthread_mutex_lock(&mutex_full);
+      while(queue_full() == true){
+        printf("ESPERA POR ESPAÇO NA INTERNAL QUEUE!!!\n");//fazer semaforo ou variavel como no outro caso.
+        pthread_cond_wait(&cond_full, &mutex_full);
+      }
+      pthread_mutex_unlock(&mutex_full);
+      int_queue[i] = aux;
+
+    }
+  }
+  //sem_post(internal_queue_write);
+  test=false;
+}
+  /*message_queue mesq;
   mesq.msgtype = 1;
   strcpy(mesq.temp, "10");
   msgsnd(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0);
   printf("CONSOLE SENT THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
-
+*/
   return NULL;
 
 }
 
 
+bool check_queue(){
+  if(int_queue[0].message[0] != '\0'){
+    return true;
+  }else{
+    return false;
+  }
+}
+
 void *dispacher_f(){
+  internal_queue aux;
+  int flag = 0;
   pthread_t tid = pthread_self();
   int work = -1;
   printf("Thread %ld: dispacher \n", tid);
   //close(channel[0]);
+  bool test = true;
+  while(test == true){
+  pthread_mutex_lock(&mutex);
+  while(check_queue() != true){
+    pthread_cond_wait(&cond, &mutex);
+  }
+  pthread_mutex_unlock(&mutex);
+  pthread_mutex_lock(&mutex_full);
+  if(check_queue() == true){
+    printf("CHECK QUEUE DEU TRUE !!!\n");
+  for(int i = 0;i<confInfo->queue_size;i++){
+    if(int_queue[i].message[0] != '\0' && int_queue[i].type == 1){
+      printf("CONSOLE MESSAGE !!!\n");
+      aux= int_queue[i];
+      for(int l = i+1;l<confInfo->queue_size;l++){
+        int_queue[l-1]=int_queue[l];
+      }
+      int_queue[confInfo->queue_size-1].message[0] = '\0';
+      int_queue[confInfo->queue_size-1].type = 0;
+      break;
+    }else if(int_queue[i].message[0] != '\0' && int_queue[i].type == 2){
+      printf("SENSOR MESSAGE   !!!\n");
+      if(flag == 0){
+        aux = int_queue[i];
+        flag = 1;
+      }
+    }
+  }
+  pthread_cond_signal(&cond_full);
+  pthread_mutex_unlock(&mutex_full);
 
-  message_queue mesq;
+  printf("INFO READ FROM INTERNAL MESSAGE QUEUE: %s\n",aux.message);
+
+  /*message_queue mesq;
   msgrcv(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0,2);//checar a prioridade
   printf("RECEIVED THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
-  printf("INFO READ FROM INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
+  printf("INFO READ FROM INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);*/
   //msgrcv(int_msqid,&mesq,sizeof(mesq)-sizeof(long),0,0);//checar a prioridade
   //printf("RECEIVED THIS INFO THROUGH INTERNAL MESSAGE QUEUE: %s\n",mesq.temp);
-
-  strcpy(write_info, mesq.temp);
-  for(int k = 0;k<confInfo->n_workers;k++){//o que fazer se todos os workers estiverem ocupados
+  printf("aux.message IN DISPACHER : %s\n",aux.message);
+  strcpy(write_info, aux.message);
+  printf("WRITE INFO IN DISPACHER : %s\n",write_info);
+  sem_wait(worker_sem);
+  for(int k = 0;k<confInfo->n_workers;k++){//o que fazer se todos os workers estiverem ocupados  : semaforo com numero de workers ou variavel
       if(shm->workers[k] == 0){
         work = k;
         break;
       }
   }
-
-  if(write(channel[work][1], write_info, sizeof(write_info)) == -1){
+  printf(" WORKER AVILABLE : %d\n", work);
+  shm->workers[work] =1;
+  if(write(channel[work][1], &aux, sizeof(internal_queue)) == -1){
     perror("ERROR WRITING IN UNNAMED PIPE!!!\n");
   }
-  printf("INFO SENT THROUGH UNNAMED PIPE : %s!\n", write_info);
-  close(channel[work][1]);//por no cleanup no futuro
-  return NULL;
-}
+  printf("INFO SENT THROUGH UNNAMED PIPE : %s!\n", aux.message);
+  //close(channel[work][1]);//por no cleanup no futuro
+  //test = false;
+    }
+  }
+    return NULL;
+  }
 
 
 void create_Message_Queue(){
@@ -243,10 +354,10 @@ void create_Message_Queue(){
     perror("ERROR ON CREATION OF MESSAGE QUEUE!!!\n");
     exit(0);
   }
-  if((int_msqid = msgget(IPC_PRIVATE, IPC_CREAT | 0700)) == -1){
+  /*if((int_msqid = msgget(IPC_PRIVATE, IPC_CREAT | 0700)) == -1){
     perror("ERROR CREATING INTERNAL QUEUE!!!\n");
     exit(0);
-  }
+  }*/
 }
 
 void create_Sem()//kill ipc sh na ficha de shared memory
@@ -263,7 +374,34 @@ void create_Sem()//kill ipc sh na ficha de shared memory
     }
     exit(0);
   }
+
+  /*sem_close(internal_queue_write);
+  sem_unlink("intQueue_write_mutex");
+  internal_queue_write = sem_open("intQueue_write_mutex",O_CREAT | O_EXCL, 0700,10);
+  if(internal_queue_write ==SEM_FAILED){
+    fprintf(stderr, "sem_open() failed. errno:%d\n", errno);
+    if (errno == EEXIST)
+    {
+      printf("Semaphore already exists \n");
+    }
+    exit(0);
+  }*/
+
+  sem_close(worker_sem);
+  sem_unlink("worker_mutex");
+  worker_sem = sem_open("worker_mutex",O_CREAT | O_EXCL, 0700, confInfo->n_workers);
+  if (worker_sem == SEM_FAILED)
+  {
+    fprintf(stderr, "sem_open() failed. errno:%d\n", errno);
+    if (errno == EEXIST)
+    {
+      printf("Semaphore already exists \n");
+    }
+    exit(0);
+  }
+
 }
+
 
 void access_Resources(){
   shmid = shmget(1234, sizeof(shm_t), 0777);
@@ -295,7 +433,7 @@ void access_Resources(){
 
 void create_unnamed_pipes(int i){
   if(pipe(channel[i]) == -1){
-    perror("ERROR CREATING UNNAMED PIPE %d!!!!\n",i);
+    perror("ERROR CREATING UNNAMED PIPE !!!!\n");
     exit(0);
   }
 }
@@ -331,9 +469,9 @@ void create_shared_mem()
     perror("FAILED ATTACHING SHARED MEMORY!");
     exit(0);
   }
-  shm->workers = (int*)( ((*void)shm) + sizeof(shm_t));
-  shm->sens = (sensor_t*)(((void*)shm->workers) + sizeof(int) * confInfo->n_workers);
-  shm->keys = (keys_t*)(((void*)shm->sens) + sizeof(sensor_t) * confInfo->max_sensors);
+  shm->workers = (int*)( ((void*)shm) + sizeof(shm_t));
+  shm->sens = (sensor_t*)( ((void*)shm->workers) + sizeof(int) * confInfo->n_workers);
+  shm->keys = (keys_t*)( ((void*)shm->sens) + sizeof(sensor_t) * confInfo->max_sensors);
   logging("SHARED MEMORY CREATED AND ATTACHED!");
 }
 
@@ -346,14 +484,10 @@ void create_Threads()
   pthread_create(&consoleReader, NULL, console_reader_f, NULL);
   logging("THREAD CONSOLE_READER CREATED");
 
-  pthread_join(dispacher, NULL);
-  pthread_join(sensorReader, NULL);
-  pthread_join(consoleReader, NULL);
-
 }
 
 void addSensorInfo(char info[]){
-  printf(" ENTREI ADDSENSORINFO!!\n");
+  printf(" ENTREI ADDSENSORINFO : %s !!\n", info);
   char *id = strtok(info, "#");
   char *key = strtok(NULL, "#");
   char *value = strtok(NULL,"#");
@@ -418,16 +552,19 @@ void end_it_all()
   shmctl(shmid, IPC_RMID, NULL);
   unlink(consolePipe);
   unlink(sensorPipe);
-  for (int i = 0; i < confInfo; i++) {
+  for (int i = 0; i < confInfo->n_workers; i++) {
     free(channel[i]);
   }
   free(channel);
   free(confInfo);
   msgctl(msqid,IPC_RMID,NULL);
-  msgctl(int_msqid,IPC_RMID,NULL);
+//  msgctl(int_msqid,IPC_RMID,NULL);
   sem_close(file_mutex);
   sem_unlink("file_write");
   fclose(logfile);
+  pthread_join(dispacher, NULL);
+  pthread_join(sensorReader, NULL);
+  pthread_join(consoleReader, NULL);
 }
 
 void wait_for_childs()
@@ -457,8 +594,7 @@ int main(int argc, char **argv)// variavel para o dispacher saber quando tem inf
       for(int i = 0; i<confInfo->n_workers; i++){
         channel[i] = malloc(2 * sizeof(int));
       }
-
-
+      int_queue = malloc(confInfo->queue_size * sizeof(internal_queue));
       logfile = fopen("log.txt", "w");
       printf("YUIIIII\n");
       create_Sem();
@@ -477,27 +613,49 @@ int main(int argc, char **argv)// variavel para o dispacher saber quando tem inf
       create_Threads();
       for (int i = 0; i < confInfo->n_workers; i++)
       {
+        create_unnamed_pipes(i);
         pid = fork();
         if (pid == 0)
         {
           //ler pipe e criar uma flag para apenas um worker ler
           char str[14];
           char num[2];
+          internal_queue aux;
           strcpy(str, "WORKER ");
           sprintf(num,"%d",i+1);
           strcat(str,num);
           strcat(str," READY");
-          shm->worker[i] = 0
-          create_unnamed_pipes(i);
+
+          shm->workers[i] = 0;
+
           logging(str);
-          if(shm->worker[i] == 0){//passar para o shared memory, array ou struct de workers para o dispacher saber a quem mandar
-            shm->worker[i] = 1;
-            close(channel[i][1]);
-            read(channel[i][0], read_info, sizeof(read_info));
-            printf("[WORKER %s] Received (%s) from master to add.\n",num,read_info);//condicoes para em caso de ser leitura de console ou de sensor
+          close(channel[i][1]);
+          while(true){
+          //passar para o shared memory, array ou struct de workers para o dispacher saber a quem mandar
+
+          int n = read(channel[i][0], &aux, sizeof(internal_queue));
+          if(n == -1){
+            perror("ERRO A LER  UNNAMED PIPE!!!!\n");
+            exit(0);
+          }
+          printf(" VALOR DE n : %d\n",n);
+
+
+            /*int total,n = 0;
+            while(total<sizeof(read_info)){
+            n += read(channel[i][0], (char*)read_info + total, sizeof(read_info)- total);
+            total += n;
+          }*/
+
+            printf("[WORKER %s] Received (%s) from master to add.\n",num,aux.message);//condicoes para em caso de ser leitura de console ou de sensor
             printf(" POIS YHA MAN !!!\n");
-            addSensorInfo(read_info);
-            printf(" GUILHERME JUNQUEIRA !!!!\n");
+            if(aux.type == 2){
+              addSensorInfo(aux.message);
+              printf(" after addSENSORINFO !!!!\n");
+            }else if(aux.type == 1){
+              printf("CONSOLE INFO CHEGA AO WORKER!!!\n");
+            }
+
             /*for(int i =0; i< confInfo->max_keys;i++){
               if(shm->keys[i].key){
                 printf("ITERAÇAO %d\n",i);
@@ -508,12 +666,15 @@ int main(int argc, char **argv)// variavel para o dispacher saber quando tem inf
               }
 
             }*/
-          }
-          shm->worker[i] = 0;
-          close(channel[i][0]);
+
+          shm->workers[i] = 0;
+          sem_post(worker_sem);
+
+        }
           //sleep(5);
           //printf("%d : I'm a child/worker process with a pid of %d and my dad is %d\n", i + 1, getpid(), getppid());
-          break;
+          close(channel[i][0]);
+          exit(0);
         }
         else if (pid < 0)
         {
@@ -537,6 +698,7 @@ int main(int argc, char **argv)// variavel para o dispacher saber quando tem inf
           msgsnd(msqid,&mesqueue,sizeof(mesqueue)-sizeof(long),0);
           printf("SENT THIS INFO THROUGH MESSAGE QUEUE: %s\n",mesqueue.temp);
           //printf("I'm the alerts child process with a father with the id of %d\n", getppid());
+          exit(0);
         }
         else if (pid < 0)
         {
