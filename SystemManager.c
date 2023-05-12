@@ -485,7 +485,7 @@ void create_pipes(){
 void create_shared_mem()
 {
   printf("ENTREI\n");
-  shmid = shmget(1234, sizeof(shm_t) + confInfo->n_workers * sizeof(int) + confInfo->max_sensors * sizeof(sensor_t) + confInfo->max_keys *sizeof(key_t), IPC_CREAT | 0777);//  ADICIONAR AS ESTRUTURAS QUE VAO ESTAR NO SHARED MEMORY
+  shmid = shmget(1234, sizeof(shm_t) + confInfo->n_workers * sizeof(int) + confInfo->max_sensors * sizeof(sensor_t) + confInfo->max_keys *sizeof(key_t) + confInfo->max_alerts *sizeof(alert_t), IPC_CREAT | 0777);//  ADICIONAR AS ESTRUTURAS QUE VAO ESTAR NO SHARED MEMORY
   printf("TAMBEM\n");
   if (shmid == -1)
   {
@@ -502,6 +502,7 @@ void create_shared_mem()
   shm->workers = (int*)( ((void*)shm) + sizeof(shm_t));
   shm->sens = (sensor_t*)( ((void*)shm->workers) + sizeof(int) * confInfo->n_workers);
   shm->keys = (keys_t*)( ((void*)shm->sens) + sizeof(sensor_t) * confInfo->max_sensors);
+  shm->alerts = (alert_t*)( ((void*)shm->keys) + sizeof(keys_t) * confInfo->max_keys);
   logging("SHARED MEMORY CREATED AND ATTACHED!");
 }
 
@@ -570,6 +571,37 @@ void addSensorInfo(char info[]){
     }
 }
 
+bool check_alerts(char id[], char key[]){//ver da cena de aparecer apenas na consola do user que pediu
+  for(int i = 0; i<confInfo->max_alerts;i++){
+    if(strcmp(shm->alerts[i].id,id) == 0){
+      return false;
+    }
+  }
+  for(int l = 0; l<confInfo->max_keys;l++){
+    if(strcmp(shm->keys[l].key,key) == 0){
+      return true;
+    }
+  }
+  return false;
+}
+
+void addAlertInfo(char id[], char key[], int min, int max){
+  for(int k = 0 ; k < confInfo->max_alerts;k++){
+    if(k == (confInfo->max_alerts-1) && shm->alerts[k].id[0] != '\0'){
+      printf("NUMERO MAXIMO DE alerts ATINGIDO!!!!\n");//falta aqui cenas, temos de ver como fazemos com que o processo acabe
+      break;
+    }
+    if(shm->alerts[k].id[0] == '\0'){
+      strcpy(shm->alerts[k].id, id);
+      strcpy(shm->alerts[k].key,key);
+      shm->alerts[k].min = min;
+      shm->alerts[k].max = max;
+      break;
+    }
+  }
+
+}
+
 void console_print(char inf[]){
   char *fl = strtok(inf, " ");
   char str[1024] = "";
@@ -607,6 +639,7 @@ void console_print(char inf[]){
   }else if(strcmp(fl,"reset") == 0){
     for(int i = 0; i<confInfo->max_keys;i++){
       if(shm->keys[i].key[0] !='\0'){
+        sem_wait(shm_sem);
         shm->keys[i].key[0] = '\0';
         shm->keys[i].lastValue = 0;
         shm->keys[i].minValue = 0;
@@ -614,10 +647,14 @@ void console_print(char inf[]){
         shm->keys[i].mean = 0;
         shm->keys[i].updates = 0;
         shm->keys[i].sum = 0;
+        sem_post(shm_sem);
       }else{
         break;
       }
     }
+    strcpy(mess_q.temp,"(OK)");
+    mess_q.msgtype = 1;
+    msgsnd(msqid,&mess_q,sizeof(mess_q)-sizeof(long),0);
 
   }else if(strcmp(fl,"sensors") == 0){
     for(int i = 0;i<confInfo->max_sensors;i++){
@@ -629,6 +666,26 @@ void console_print(char inf[]){
     strcpy(mess_q.temp,str);
     mess_q.msgtype = 1;
     msgsnd(msqid,&mess_q,sizeof(mess_q)-sizeof(long),0);
+  }else if(strcmp(fl,"add_alert") == 0){
+    char *alert_id = strtok(NULL," ");
+    char *key = strtok(NULL," ");
+    char *min = strtok(NULL," ");
+    int new_min = atoi(min);
+    char *max = strtok(NULL," ");
+    int new_max = atoi(max);
+    if(check_alerts(alert_id,key) == true ){
+      sem_wait(shm_sem);
+      addAlertInfo(alert_id,key,new_min,new_max);
+      sem_post(shm_sem);
+      strcpy(mess_q.temp,"(OK)");
+      mess_q.msgtype = 1;
+      msgsnd(msqid,&mess_q,sizeof(mess_q)-sizeof(long),0);
+    }else{
+      strcpy(mess_q.temp,"(ERROR)");
+      mess_q.msgtype = 1;
+      msgsnd(msqid,&mess_q,sizeof(mess_q)-sizeof(long),0);
+    }
+
   }else{
     printf("EM DESENVOLVIMENTO...\n");
   }

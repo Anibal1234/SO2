@@ -35,6 +35,9 @@ void sendInfo(char info[]){
   strcpy(write_info, info);
   if(write(fd, write_info, sizeof(write_info)) == -1){
     perror("ERROR WRITING IN CONSOLE NAMED PIPE!!!\n");
+    msgctl(msqid,IPC_RMID,NULL);
+    close(fd);
+    exit(0);
   }
   printf("INFO WROTE IN CONSOLE NAMED PIPE : %s!\n",write_info);
 
@@ -47,13 +50,23 @@ void create_messageQueue(){
   }
 }
 
+void clean(int signum){
+  printf("CTRL-C Pressed...\n");
+  msgctl(msqid,IPC_RMID,NULL);
+  //close(fd);
+  exit(0);
+}
+
+
 void console_Menu()
 {
+  signal(SIGINT,clean);
   printf("\t MENU \t\n");
   printf("Write the option u want!!!\n");
   printf(" 1: EXIT\n 2: STATS\n 3: RESET\n 4: SENSORS\n 5: ADD ALERT\n 6: REMOVE ALERT\n 7: LIST ALERTS\n");
   char choice[15];
   fgets(choice, sizeof(choice), stdin);
+  char *opt = strtok(choice, " ");
   if (strcmp(choice, "exit\n") == 0)
   {
     exit(0);
@@ -89,17 +102,17 @@ void console_Menu()
 
     console_Menu();
   }
-  else if (strcmp(choice, "add alert\n") == 0)
+  else if (strcmp(opt, "add_alert\n") == 0)
   {
     printf("You're in add alert!!!\n");
     console_Menu();
   }
-  else if (strcmp(choice, "remove alert\n") == 0)
+  else if (strcmp(opt, "remove_alert\n") == 0)
   {
     printf("You're in remove alert!!!\n");
     console_Menu();
   }
-  else if (strcmp(choice, "list alerts\n") == 0)
+  else if (strcmp(choice, "list_alerts\n") == 0)
   {
     printf("You're in list alerts!!!\n");
     console_Menu();

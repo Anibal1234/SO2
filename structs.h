@@ -27,6 +27,12 @@ typedef struct key{
   int sum;
 }keys_t;
 
+typedef struct alert{
+  char id[33];
+  char key[33];
+  int min;
+  int max;
+}alert_t;
 
 typedef struct Sensor{
   int sent;
@@ -66,6 +72,7 @@ typedef struct Shared {
     int *workers;
     sensor_t* sens;
     keys_t *keys;
+    alert_t *alerts;
 } shm_t;
 
 shm_t* shm;
