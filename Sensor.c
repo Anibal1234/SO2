@@ -26,6 +26,7 @@ sensor_t sens;
 keys_t key;
 //sens.keys = malloc(sizeof(keys_t));
 int fd;
+int count= 0;
 
 int interval_check(int min, int max){
   if(max-min>0){
@@ -62,6 +63,16 @@ int generateValue(int min, int max){
   return number;
 }
 
+void cleanup(int signum){
+  printf("CTRL-C PRESSED....\n");
+  close(fd);
+  exit(0);
+}
+
+void show_count(int signum){
+  printf("SENSOR HAS SENT %d MESSAGES!!!\n",count);
+}
+
 void openpipe(){
   printf("ENTREI!!!\n");
   if((fd = open(sensorPipe,O_WRONLY))<0){
@@ -87,11 +98,12 @@ void sendInfo(){
   strcpy(write_info, info);
   if(write(fd, write_info, sizeof(write_info)) == -1){
     perror("ERROR WRITING IN CONSOLE SENSOR PIPE!!!\n");
+    exit(0);
   }
   printf("INFO WROTE IN SENSOR NAMED PIPE ; %s \n",write_info);
+  count +=1;
 
 }
-
 
 
 int main(int argc, char **argv)// variavel para o dispacher saber quando tem informaão para ler; e mutex/semeforo na internal queue para nao escreverem e ler ao mesmo tempo
@@ -103,7 +115,8 @@ int main(int argc, char **argv)// variavel para o dispacher saber quando tem inf
       {
         //printf("MY PID IS: %d\n", getpid());
         printf("This is the sensor!!! \n");
-
+        signal(SIGINT, cleanup);
+        signal(SIGTSTP, show_count);
         int max = atoi(argv[6]);
         int min = atoi(argv[5]);
         printf("GUILLOS\n");

@@ -33,8 +33,7 @@ FILE *logfile;
 char buffer[bufferLength];
 char logger[stringLength];
 sem_t *file_mutex;
-sem_t *internal_queue_write;
-sem_t *internal_queue_read;
+sem_t *shm_sem;
 sem_t *worker_sem;
 int conf_counter = 0;
 pid_t pid;
@@ -171,6 +170,15 @@ bool queue_full(){
   }
 }
 
+void sensor_on(char id[]){
+  for(int i = 0; i<confInfo->max_sensors;i++){
+    if(strcmp(id,shm->sens[i].id) == 0){
+      shm->sens[i].sent = 1;
+      break;
+    }
+  }
+}
+
 void *sensor_reader_f(){
   int fd;
   internal_queue aux;
@@ -184,6 +192,7 @@ void *sensor_reader_f(){
 
   bool test = true;
   while(test == true){
+
   if(read(fd, write_info, sizeof(write_info)) == -1){
     perror("ERROR READING IN SENSOR NAMED PIPE!!!\n");
   }
@@ -191,6 +200,8 @@ void *sensor_reader_f(){
 
   strcpy(aux.message,write_info);
   aux.type = 2;
+  char *sen_id = strtok(write_info,"#");
+  sensor_on(sen_id);
   //sem_wait(internal_queue_write);
   for(int i = 0; i<confInfo->queue_size;i++){
     if(int_queue[i].message[0] == '\0'){
@@ -258,7 +269,7 @@ void *console_reader_f(){
     }
   }
   //sem_post(internal_queue_write);
-  test=false;
+  //test=false;
 }
   /*message_queue mesq;
   mesq.msgtype = 1;
@@ -284,6 +295,7 @@ void *dispacher_f(){
   int flag = 0;
   pthread_t tid = pthread_self();
   int work = -1;
+  int ind;
   printf("Thread %ld: dispacher \n", tid);
   //close(channel[0]);
   bool test = true;
@@ -300,20 +312,25 @@ void *dispacher_f(){
     if(int_queue[i].message[0] != '\0' && int_queue[i].type == 1){
       printf("CONSOLE MESSAGE !!!\n");
       aux= int_queue[i];
-      for(int l = i+1;l<confInfo->queue_size;l++){
-        int_queue[l-1]=int_queue[l];
-      }
-      int_queue[confInfo->queue_size-1].message[0] = '\0';
-      int_queue[confInfo->queue_size-1].type = 0;
+      ind = i;
       break;
     }else if(int_queue[i].message[0] != '\0' && int_queue[i].type == 2){
       printf("SENSOR MESSAGE   !!!\n");
       if(flag == 0){
         aux = int_queue[i];
+        printf("O INT_QUEUE ESCOLHIDO : %s\n",aux.message);
+        ind = i;
         flag = 1;
       }
     }
   }
+  flag = 0;
+  for(int l = ind+1;l<confInfo->queue_size;l++){
+    int_queue[l-1]=int_queue[l];
+  }
+  int_queue[confInfo->queue_size-1].message[0] = '\0';
+  int_queue[confInfo->queue_size-1].type = 0;
+
   pthread_cond_signal(&cond_full);
   pthread_mutex_unlock(&mutex_full);
 
@@ -335,7 +352,7 @@ void *dispacher_f(){
         break;
       }
   }
-  printf(" WORKER AVILABLE : %d\n", work);
+  printf(" WORKER AVAILABLE : %d\n", work);
   shm->workers[work] =1;
   if(write(channel[work][1], &aux, sizeof(internal_queue)) == -1){
     perror("ERROR WRITING IN UNNAMED PIPE!!!\n");
@@ -370,7 +387,20 @@ void create_Sem()//kill ipc sh na ficha de shared memory
     fprintf(stderr, "sem_open() failed. errno:%d\n", errno);
     if (errno == EEXIST)
     {
-      printf("Semaphore already exists \n");
+      printf("Semaphore already exists! \n");
+    }
+    exit(0);
+  }
+
+  sem_close(shm_sem);
+  sem_unlink("shm_mutex");
+  shm_sem = sem_open("shm_mutex",O_CREAT | O_EXCL, 0700, 1);
+  if (shm_sem== SEM_FAILED)
+  {
+    fprintf(stderr, "sem_open() failed. errno:%d\n", errno);
+    if (errno == EEXIST)
+    {
+      printf("Semaphore already exists!! \n");
     }
     exit(0);
   }
@@ -395,7 +425,7 @@ void create_Sem()//kill ipc sh na ficha de shared memory
     fprintf(stderr, "sem_open() failed. errno:%d\n", errno);
     if (errno == EEXIST)
     {
-      printf("Semaphore already exists \n");
+      printf("Semaphore already exists!!! \n");
     }
     exit(0);
   }
@@ -494,40 +524,38 @@ void addSensorInfo(char info[]){
   int val = atoi(value);
 
   for(int i = 0; i<confInfo->max_sensors;i++){
-    printf("NO MAX SENSORS %d \n", i);
+    printf("VERIFICA MAX SENSORS no asssensorinfo %d \n", i);
     if( i == (confInfo->max_sensors - 1) && shm->sens[i].id[0] != '\0'){
       printf("NUMERO MAXIMO DE SENSORS ATINGIDO!!!!\n");//mesma merda que em baixo
       break;
     }else if(shm->sens[i].id && shm->sens[i].id[0] == '\0'){
-        printf("SETE  %d\n",shm->sens[i].id[0]);
         strcpy(shm->sens->id, id );
         printf("SENSOR INFO :%s",shm->sens[i].id);
         break;
     }
   }
     for(int l = 0; l< confInfo->max_keys;l++){
-      printf("NO MAX KEYS %d \n", l);
+      printf("VERIFICA MAX KEYS %d \n", l);
       if(l == (confInfo->max_keys-1) && strcmp(shm->keys[l].key,key) != 0){
         printf("NUMERO MAXIMO DE KEYS ATINGIDO!!!!\n");//falta aqui cenas, temos de ver como fazemos com que o processo acabe
         break;
       }
       if(strcmp(shm->keys[l].key,key) == 0){
-        printf("TRES \n");
+        printf("KEY EXISTS \n");
         shm->keys[l].lastValue = val;
         shm->keys[l].updates += 1;
         shm->keys[l].sum += val;
         shm->keys[l].mean = (shm->keys[l].sum / shm->keys[l].updates);
         if(val > shm->keys[l].maxValue){
-          printf("QUATRO\n");
           shm->keys[l].maxValue = val;
         }
         if(val< shm->keys[l].minValue){
-          printf("cinco\n");
           shm->keys[l].minValue = val;
         }
+        printf("INFORMATION IN KEYS1 : %s; %d; %d; %d; %d; %d; %d; %d; %d;", shm->keys[l].key,shm->keys[l].minValue,shm->keys[l].maxValue,shm->keys[l].lastValue,shm->keys[l].minValue,shm->keys[l].maxValue,shm->keys[l].mean,shm->keys[l].updates,shm->keys[l].sum);
         break;
       }else if(shm->keys[l].key && shm->keys[l].key[0] == '\0'){
-        printf("SEXTO\n");
+        printf("NO KEY YET\n");
         strcpy(shm->keys[l].key, key );
         shm->keys[l].lastValue = val;
         shm->keys[l].updates = 1;
@@ -535,15 +563,75 @@ void addSensorInfo(char info[]){
         shm->keys[l].mean = (shm->keys[l].sum / shm->keys[l].updates);
         shm->keys[l].maxValue = val;
         shm->keys[l].minValue = val;
-        printf("INFORMATION IN KEYS :%s ; %d; %d; %d; %d; %d; %d; %d; %d;", shm->keys[l].key,shm->keys[l].minValue,shm->keys[l].maxValue,shm->keys[l].lastValue,shm->keys[l].minValue,shm->keys[l].maxValue,shm->keys[l].mean,shm->keys[l].updates,shm->keys[l].sum);
+        printf("INFORMATION IN KEYS2 : %s; %d; %d; %d; %d; %d; %d; %d; %d;", shm->keys[l].key,shm->keys[l].minValue,shm->keys[l].maxValue,shm->keys[l].lastValue,shm->keys[l].minValue,shm->keys[l].maxValue,shm->keys[l].mean,shm->keys[l].updates,shm->keys[l].sum);
         break;
       }
 
     }
+}
 
-      printf("KJKJKJKJKJK\n");
+void console_print(char inf[]){
+  char *fl = strtok(inf, " ");
+  char str[1024] = "";
+  char aux[34];
+  message_queue mess_q;
+  if(strcmp(fl,"stats") == 0){
 
-printf("WELELELELELELEL\n");
+    for(int i = 0; i<confInfo->max_keys;i++){
+      if(shm->keys[i].key[0] !='\0'){
+        strcat(str,shm->keys[i].key);
+        strcat(str," ");
+        sprintf(aux,"%d",shm->keys[i].lastValue);
+        strcat(str,aux);
+        strcat(str," ");
+        sprintf(aux,"%d",shm->keys[i].minValue);
+        strcat(str,aux);
+        strcat(str," ");
+        sprintf(aux,"%d",shm->keys[i].maxValue);
+        strcat(str,aux);
+        strcat(str," ");
+        sprintf(aux,"%d",shm->keys[i].mean);
+        strcat(str,aux);
+        strcat(str," ");
+        sprintf(aux,"%d",shm->keys[i].updates);
+        strcat(str,aux);
+        strcat(str,"\n");
+
+      }else{
+        break;
+      }
+    }
+    strcpy(mess_q.temp,str);
+    mess_q.msgtype = 1;
+    msgsnd(msqid,&mess_q,sizeof(mess_q)-sizeof(long),0);
+  }else if(strcmp(fl,"reset") == 0){
+    for(int i = 0; i<confInfo->max_keys;i++){
+      if(shm->keys[i].key[0] !='\0'){
+        shm->keys[i].key[0] = '\0';
+        shm->keys[i].lastValue = 0;
+        shm->keys[i].minValue = 0;
+        shm->keys[i].maxValue = 0;
+        shm->keys[i].mean = 0;
+        shm->keys[i].updates = 0;
+        shm->keys[i].sum = 0;
+      }else{
+        break;
+      }
+    }
+
+  }else if(strcmp(fl,"sensors") == 0){
+    for(int i = 0;i<confInfo->max_sensors;i++){
+      if(shm->sens[i].sent == 1){
+        strcat(str,shm->sens[i].id);
+        strcat(str," \n");
+      }
+    }
+    strcpy(mess_q.temp,str);
+    mess_q.msgtype = 1;
+    msgsnd(msqid,&mess_q,sizeof(mess_q)-sizeof(long),0);
+  }else{
+    printf("EM DESENVOLVIMENTO...\n");
+  }
 }
 
 void end_it_all()
@@ -577,6 +665,7 @@ void wait_for_childs()
     wait(NULL);
   }
 }
+
 
 int main(int argc, char **argv)// variavel para o dispacher saber quando tem informaão para ler; e mutex/semeforo na internal queue para nao escreverem e ler ao mesmo tempo
 {
@@ -648,12 +737,14 @@ int main(int argc, char **argv)// variavel para o dispacher saber quando tem inf
           }*/
 
             printf("[WORKER %s] Received (%s) from master to add.\n",num,aux.message);//condicoes para em caso de ser leitura de console ou de sensor
-            printf(" POIS YHA MAN !!!\n");
             if(aux.type == 2){
+              sem_wait(shm_sem);
               addSensorInfo(aux.message);
+              sem_post(shm_sem);
               printf(" after addSENSORINFO !!!!\n");
             }else if(aux.type == 1){
               printf("CONSOLE INFO CHEGA AO WORKER!!!\n");
+              console_print(aux.message);
             }
 
             /*for(int i =0; i< confInfo->max_keys;i++){
@@ -692,11 +783,11 @@ int main(int argc, char **argv)// variavel para o dispacher saber quando tem inf
         if (pid == 0)
         {
           logging("PROCESS ALERTS_WATCHER CREATED");
-          message_queue mesqueue;
+        /*  message_queue mesqueue;
           mesqueue.msgtype = 1;
           strcpy(mesqueue.temp, "20");
           msgsnd(msqid,&mesqueue,sizeof(mesqueue)-sizeof(long),0);
-          printf("SENT THIS INFO THROUGH MESSAGE QUEUE: %s\n",mesqueue.temp);
+          printf("SENT THIS INFO THROUGH MESSAGE QUEUE: %s\n",mesqueue.temp);*/
           //printf("I'm the alerts child process with a father with the id of %d\n", getppid());
           exit(0);
         }
@@ -710,8 +801,9 @@ int main(int argc, char **argv)// variavel para o dispacher saber quando tem inf
           //printf("I'M the DADDY !!!\n");
         }
       }
-      wait_for_childs();
+
       if(pid > 0 ){
+      wait_for_childs();
       logging("HOME_IOT SIMULATOR CLOSING");
       end_it_all();
       }

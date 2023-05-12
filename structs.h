@@ -29,6 +29,7 @@ typedef struct key{
 
 
 typedef struct Sensor{
+  int sent;
   int interval;
   char id[33];
 

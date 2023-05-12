@@ -60,8 +60,9 @@ void console_Menu()
   }
   else if (strcmp(choice, "stats\n") == 0)
   {
-    sendInfo("stats");
+
     printf("You're in stats!!!\n");
+    sendInfo("stats");
     message_queue msg;
     printf("KKKKKK\n");
     msgrcv(msqid,&msg,sizeof(msg)-sizeof(long),0,0);
@@ -73,11 +74,19 @@ void console_Menu()
   else if (strcmp(choice, "reset\n") == 0)
   {
     printf("You're in reset!!!\n");
+    sendInfo("reset");
     console_Menu();
   }
   else if (strcmp(choice, "sensors\n") == 0)
   {
     printf("You're in sensors!!!\n");
+    sendInfo("sensors");
+    message_queue msg;
+    printf("LLLLLLLLL\n");
+    msgrcv(msqid,&msg,sizeof(msg)-sizeof(long),0,0);
+    printf("ok\n");
+    printf("%s\n", msg.temp);
+
     console_Menu();
   }
   else if (strcmp(choice, "add alert\n") == 0)
