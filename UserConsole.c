@@ -27,6 +27,7 @@ int msqid;
 
 void sendInfo(char info[]){
   int fd;
+
   if((fd = open(consolePipe,O_WRONLY))<0){
       perror("ERROR OPENING CONSOLE PIPE FOR WRITING!!!\n");
       exit(0);
@@ -39,7 +40,7 @@ void sendInfo(char info[]){
     close(fd);
     exit(0);
   }
-  printf("INFO WROTE IN CONSOLE NAMED PIPE : %s!\n",write_info);
+  //printf("INFO WROTE IN CONSOLE NAMED PIPE : %s!\n",write_info);
 
 }
 
@@ -69,7 +70,6 @@ void console_Menu()
   fgets(choice, sizeof(choice), stdin);
   strcpy(helper,choice);
   char *opt = strtok(choice, " ");
-  printf("PRIMEIRA PALAVRA : %s\n", opt);
   if (strcmp(choice, "exit\n") == 0)
   {
     exit(0);
@@ -77,76 +77,51 @@ void console_Menu()
   else if (strcmp(choice, "stats\n") == 0)
   {
 
-    printf("You're in stats!!!\n");
+    //printf("You're in stats!!!\n");
     sendInfo("stats");
-    message_queue msg;
-    printf("KKKKKK\n");
-    msgrcv(msqid,&msg,sizeof(msg)-sizeof(long),0,0);
-    printf("ok\n");
-    printf("%s\n", msg.temp);
-
-    //console_Menu();
   }
   else if (strcmp(choice, "reset\n") == 0)
   {
-    printf("You're in reset!!!\n");
+    //printf("You're in reset!!!\n");
     sendInfo("reset");
-    //console_Menu();
+
   }
   else if (strcmp(choice, "sensors\n") == 0)
   {
-    printf("You're in sensors!!!\n");
+    //printf("You're in sensors!!!\n");
     sendInfo("sensors");
-    message_queue msg;
-    printf("LLLLLLLLL\n");
-    msgrcv(msqid,&msg,sizeof(msg)-sizeof(long),0,0);
-    printf("ok\n");
-    printf("%s\n", msg.temp);
 
-    //console_Menu();
   }
   else if (strcmp(opt, "add_alert") == 0)
   {
-
-    printf("You're in add alert : %s!!!\n",helper);
+    int newline_index = strcspn(helper,"\n");
+    if(helper[newline_index] == '\n'){
+      helper[newline_index] = '\0';
+    }
+    //printf("You're in add alert : %s!!!\n",helper);
     sendInfo(helper);
-    message_queue msg;
-    printf("ÇÇÇÇÇÇÇÇ\n");
-    msgrcv(msqid,&msg,sizeof(msg)-sizeof(long),0,0);
-    printf("ok\n");
-    printf("%s\n", msg.temp);
-
-    //console_Menu();
   }
   else if (strcmp(opt, "remove_alert") == 0)
   {
-    printf("You're in remove alert!!!\n");
+    //printf("You're in remove alert!!!\n");
     sendInfo(helper);
-    message_queue msg;
-    printf("ppppp\n");
-    msgrcv(msqid,&msg,sizeof(msg)-sizeof(long),0,0);
-    printf("ok\n");
-    printf("%s\n", msg.temp);
 
-    //console_Menu();
   }
   else if (strcmp(choice, "list_alerts\n") == 0)
   {
-    printf("You're in list alerts!!!\n");
+    //printf("You're in list alerts!!!\n");
     sendInfo("list_alerts");
-    message_queue msg;
-    printf("vvvvvvv\n");
-    msgrcv(msqid,&msg,sizeof(msg)-sizeof(long),0,0);
-    printf("ok\n");
-    printf("%s\n", msg.temp);
 
-    //console_Menu();
   }
   else
   {
     printf("Invalid option, try again\n");
-    //console_Menu();
+    sendInfo("INVALID");
   }
+  message_queue msg;
+  msgrcv(msqid,&msg,sizeof(msg)-sizeof(long),1,0);
+  printf("%s\n", msg.temp);
+
 }
 
 
@@ -171,23 +146,25 @@ int main(int argc, char **argv)
       //printf("MY PID IS: %d\n", getpid());
       //printf("This is the user console!!! \n");
       strcpy(ConsoleID, argv[2]);
-      printf("Console ID: %s\n", ConsoleID);
+      //printf("Console ID: %s\n", ConsoleID);
       signal(SIGINT,clean);
       create_messageQueue();
+      console_Menu();
       while(true){
         message_queue mess;
-        if(msgrcv(msqid, &mess,sizeof(mess)-sizeof(long),0,IPC_NOWAIT) == -1){
+        if(msgrcv(msqid, &mess,sizeof(mess)-sizeof(long),2,IPC_NOWAIT) == -1){
           if(errno == ENOMSG){
             console_Menu();
+            continue;
           }else{
             perror("ERROR WIH RECEIVING ALERT!!\n");
 
           }
+        }else{
+          printf("%s\n",mess.temp);
         }
-        printf("HEHEHEHE\n");
-        printf("%s\n",mess.temp);
       }
-      //console_Menu();
+
     }else{
       printf("User Console not Correct!!!\n");
     }

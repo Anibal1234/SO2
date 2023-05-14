@@ -24,7 +24,6 @@
 char write_info[bufferLength];
 sensor_t sens;
 keys_t key;
-//sens.keys = malloc(sizeof(keys_t));
 int fd;
 int count= 0;
 
@@ -74,7 +73,6 @@ void show_count(int signum){
 }
 
 void openpipe(){
-  printf("ENTREI!!!\n");
   if((fd = open(sensorPipe,O_WRONLY))<0){
       perror("ERROR OPENING SENSOR PIPE FOR WRITING!!!\n");
       exit(0);
@@ -82,13 +80,11 @@ void openpipe(){
 }
 
 void sendInfo(){
-  printf("ENTREI123!!!\n");
+
   int value;
   char info[bufferLength];
   char num[4];
-  printf("ANTES\n");
   value = generateValue(key.min,key.max);
-  printf("Depois\n");
   sprintf(num, "%d", value);
   strcpy(info,sens.id);
   strcat(info,"#");
@@ -100,13 +96,13 @@ void sendInfo(){
     perror("ERROR WRITING IN CONSOLE SENSOR PIPE!!!\n");
     exit(0);
   }
-  printf("INFO WROTE IN SENSOR NAMED PIPE ; %s \n",write_info);
+  //printf("INFO WROTE IN SENSOR NAMED PIPE ; %s \n",write_info);
   count +=1;
 
 }
 
 
-int main(int argc, char **argv)// variavel para o dispacher saber quando tem informaão para ler; e mutex/semeforo na internal queue para nao escreverem e ler ao mesmo tempo
+int main(int argc, char **argv)
 
 {
     if (argc == 7)
@@ -114,29 +110,23 @@ int main(int argc, char **argv)// variavel para o dispacher saber quando tem inf
       if (strcmp(argv[1], "sensor") == 0)
       {
         //printf("MY PID IS: %d\n", getpid());
-        printf("This is the sensor!!! \n");
+        //printf("This is the sensor!!! \n");
         signal(SIGINT, cleanup);
         signal(SIGTSTP, show_count);
         int max = atoi(argv[6]);
         int min = atoi(argv[5]);
-        printf("GUILLOS\n");
         if (argv[2][2] == '\0' || argv[4][2] == '\0' || alfanum_check(argv[2],1) == 0 || alfanum_check(argv[4],2) == 0 || interval_check(min,max) == 0)
         {
           perror("COMMAND ARGUMENTS WRONG!!!\n");
           exit(0);
         }
         strcpy(sens.id, argv[2]);
-        printf("HAHAHA\n");
         sens.interval = atoi(argv[3]);
-        printf("HAHAHA123\n");
         strcpy(key.key, argv[4]);
-        printf("HAHAHA456\n");
         key.min = atoi(argv[5]);
-        printf("HAHAHA789\n");
         key.max = atoi(argv[6]);
-        printf("HERE'S THE INFO: %s, %d, %s, %d, %d\n", sens.id, sens.interval, key.key, key.min, key.max);
+        //printf("HERE'S THE INFO: %s, %d, %s, %d, %d\n", sens.id, sens.interval, key.key, key.min, key.max);
         openpipe();
-        printf("BUCKLE MY SHOE!!!!\n");
         while(true){
         sendInfo();
         sleep(sens.interval);

@@ -22,7 +22,7 @@ typedef struct key{
   int lastValue;
   int minValue;
   int maxValue;
-  int mean;//provavelmente sera necessario uma forma de guardar os valores, maybe um atribute que os vai mantendo somados
+  int mean;
   int updates;
   int sum;
 }keys_t;
