@@ -607,6 +607,7 @@ void console_print(char inf[]){
   char str[1024] = "";
   char aux[34];
   message_queue mess_q;
+  printf(" INFO É : %s \n",fl);
   if(strcmp(fl,"stats") == 0){
 
     for(int i = 0; i<confInfo->max_keys;i++){
@@ -674,20 +675,70 @@ void console_print(char inf[]){
     char *max = strtok(NULL," ");
     int new_max = atoi(max);
     if(check_alerts(alert_id,key) == true ){
+      printf("CHECK ALERTS DEU TRUE\n");
       sem_wait(shm_sem);
       addAlertInfo(alert_id,key,new_min,new_max);
       sem_post(shm_sem);
       strcpy(mess_q.temp,"(OK)");
       mess_q.msgtype = 1;
       msgsnd(msqid,&mess_q,sizeof(mess_q)-sizeof(long),0);
+      printf("ALERT : %s\n", shm->alerts[0].id);
     }else{
       strcpy(mess_q.temp,"(ERROR)");
       mess_q.msgtype = 1;
       msgsnd(msqid,&mess_q,sizeof(mess_q)-sizeof(long),0);
     }
 
+  }else if(strcmp(fl,"remove_alert") == 0){
+    char * id = strtok(NULL, " ");
+    int flag = 0;
+    for(int i = 0; i<confInfo->max_alerts;i++){
+      if(strcmp(shm->alerts[i].id,id) == 0){
+        sem_wait(shm_sem);
+        shm->alerts[i].id[0] = '\0';
+        shm->alerts[i].key[0] = '\0';
+        shm->alerts[i].min = 0;
+        shm->alerts[i].max = 0;
+
+        for(int l = i+1;l<confInfo->max_alerts;l++){
+          shm->alerts[l-1]=shm->alerts[l];
+        }
+        shm->alerts[confInfo->max_alerts-1].id[0] = '\0';
+        shm->alerts[confInfo->max_alerts-1].key[0] = '\0';
+        shm->alerts[confInfo->max_alerts-1].min = 0;
+        shm->alerts[confInfo->max_alerts-1].max = 0;
+
+        sem_post(shm_sem);
+        flag =1;
+        break;
+      }
+  }
+  if(flag == 1){
+    strcpy(mess_q.temp,"(OK)");
+    mess_q.msgtype = 1;
+    msgsnd(msqid,&mess_q,sizeof(mess_q)-sizeof(long),0);
   }else{
-    printf("EM DESENVOLVIMENTO...\n");
+    strcpy(mess_q.temp,"(ERROR)");
+    mess_q.msgtype = 1;
+    msgsnd(msqid,&mess_q,sizeof(mess_q)-sizeof(long),0);
+  }
+
+}else if(strcmp(fl,"list_alerts")){
+  for(int i = 0;i<confInfo->max_alerts;i++){
+      strcat(str,shm->alerts[i].id);
+      strcat(str," ");
+      strcat(str,shm->alerts[i].key);
+      strcat(str," ");
+      sprintf(aux,"%d",shm->alerts[i].min);
+      strcat(str,aux);
+      strcat(str," ");
+      sprintf(aux,"%d",shm->alerts[i].max);
+      strcat(str,aux);
+      strcat(str," \n");
+  }
+  strcpy(mess_q.temp,str);
+  mess_q.msgtype = 1;
+  msgsnd(msqid,&mess_q,sizeof(mess_q)-sizeof(long),0);
   }
 }
 
@@ -840,6 +891,46 @@ int main(int argc, char **argv)// variavel para o dispacher saber quando tem inf
         if (pid == 0)
         {
           logging("PROCESS ALERTS_WATCHER CREATED");
+          while(true){
+            message_queue mess;
+            for(int i = 0; i<confInfo->max_alerts;i++){
+              for(int k = 0; k< confInfo->max_keys;k++){
+                if(shm->keys[k].key[0] != '\0' && shm->alerts[i].id[0] != '\0' && strcmp(shm->alerts[i].key,shm->keys[k].key) == 0){
+                  if(shm->keys[k].lastValue > shm->alerts[i].max){
+                    strcpy(mess.temp,"ALERTA: ");
+                    strcat(mess.temp,shm->keys[k].key);
+                    strcat(mess.temp," obteve um valor superior a ");
+                    char m[5];
+                    sprintf(m,"%d",shm->alerts[i].max);
+                    strcat(mess.temp,m);
+                    strcat(mess.temp," : ");
+                    sprintf(m,"%d",shm->keys[k].lastValue);
+                    strcat(mess.temp,m);
+                    strcat(mess.temp," \n");
+                    mess.msgtype = 1;
+                    msgsnd(msqid,&mess,sizeof(mess)-sizeof(long),0);
+                    break;
+                  }
+                  else if(shm->keys[k].lastValue < shm->alerts[i].min){
+                    strcpy(mess.temp,"ALERTA: ");
+                    strcat(mess.temp,shm->keys[k].key);
+                    strcat(mess.temp," obteve um valor inferior a ");
+                    char m[5];
+                    sprintf(m,"%d",shm->alerts[i].max);
+                    strcat(mess.temp,m);
+                    strcat(mess.temp," : ");
+                    sprintf(m,"%d",shm->keys[k].lastValue);
+                    strcat(mess.temp,m);
+                    strcat(mess.temp," \n");
+                    mess.msgtype = 1;
+                    msgsnd(msqid,&mess,sizeof(mess)-sizeof(long),0);
+                    break;
+                  }
+                }
+              }
+            }
+          }
+
         /*  message_queue mesqueue;
           mesqueue.msgtype = 1;
           strcpy(mesqueue.temp, "20");
